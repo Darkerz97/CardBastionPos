@@ -13,6 +13,12 @@ function generateFolio() {
   return `CB-${yyyy}${mm}${dd}-${hh}${mi}${ss}`
 }
 
+function resolvePaymentStatus(amountPaid, amountDue) {
+  if (Number(amountDue || 0) <= 0) return 'paid'
+  if (Number(amountPaid || 0) <= 0) return 'pending'
+  return 'partial'
+}
+
 function registerSalesHandlers() {
   ipcMain.handle('sales:create', (event, payload) => {
     const db = getDb()
@@ -38,6 +44,9 @@ function registerSalesHandlers() {
       change_given = 0,
       customerId = null,
       credit_used = 0,
+      amount_paid,
+      due_date = null,
+      payment_notes = '',
     } = payload || {}
 
     if (!items.length) {
@@ -59,9 +68,40 @@ function registerSalesHandlers() {
       throw new Error('Total inconsistente con subtotal, descuento y credito aplicado.')
     }
 
-    if (String(payment_method || 'cash') === 'cash' && Number(cash_received || 0) < totalValue) {
-      throw new Error('El monto recibido en efectivo no puede ser menor al total.')
+    const hasAmountPaid = amount_paid !== null && amount_paid !== undefined && amount_paid !== ''
+    const amountPaidValue = hasAmountPaid
+      ? Number(amount_paid || 0)
+      : Number(totalValue || 0)
+
+    if (!Number.isFinite(amountPaidValue) || amountPaidValue < 0) {
+      throw new Error('El monto pagado inicial es invalido.')
     }
+
+    if (amountPaidValue > totalValue + 0.01) {
+      throw new Error('El monto pagado no puede ser mayor al total neto a cobrar.')
+    }
+
+    const amountDueValue = Math.max(totalValue - amountPaidValue, 0)
+    const paymentStatusValue = resolvePaymentStatus(amountPaidValue, amountDueValue)
+
+    if ((paymentStatusValue === 'partial' || paymentStatusValue === 'pending') && !customerId) {
+      throw new Error('Las ventas parciales o pendientes deben tener un cliente seleccionado.')
+    }
+
+    if (creditToUse > 0 && !customerId) {
+      throw new Error('No puedes usar credito sin seleccionar un cliente.')
+    }
+
+    const paymentMethodValue = String(payment_method || 'cash')
+    const cashReceivedValue = paymentMethodValue === 'cash' ? Number(cash_received || 0) : 0
+
+    if (paymentMethodValue === 'cash' && amountPaidValue > 0 && cashReceivedValue < amountPaidValue) {
+      throw new Error('El monto recibido en efectivo no puede ser menor al pago inicial.')
+    }
+
+    const changeGivenValue = paymentMethodValue === 'cash'
+      ? Math.max(cashReceivedValue - amountPaidValue, 0)
+      : 0
 
     const folio = generateFolio()
 
@@ -76,8 +116,13 @@ function registerSalesHandlers() {
         change_given,
         status,
         customer_id,
-        credit_used
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        credit_used,
+        payment_status,
+        amount_paid,
+        amount_due,
+        due_date,
+        payment_notes
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
     const insertSaleItem = db.prepare(`
@@ -132,18 +177,34 @@ function registerSalesHandlers() {
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `)
 
+    const insertSalePayment = db.prepare(`
+      INSERT INTO sale_payments (
+        sale_id,
+        customer_id,
+        amount,
+        payment_method,
+        notes,
+        is_initial
+      ) VALUES (?, ?, ?, ?, ?, 1)
+    `)
+
     const transaction = db.transaction(() => {
       const saleResult = insertSale.run(
         folio,
         subtotalValue,
         discountValue,
         totalValue,
-        String(payment_method || 'cash'),
-        Number(cash_received || 0),
-        Number(change_given || 0),
+        paymentMethodValue,
+        cashReceivedValue,
+        Number(changeGivenValue || 0),
         'completed',
         customerId ? Number(customerId) : null,
-        creditToUse
+        creditToUse,
+        paymentStatusValue,
+        amountPaidValue,
+        amountDueValue,
+        due_date || null,
+        String(payment_notes || '')
       )
 
       const saleId = Number(saleResult.lastInsertRowid)
@@ -200,24 +261,20 @@ function registerSalesHandlers() {
       }
 
       if (creditToUse > 0) {
-        if (!customerId) {
-          throw new Error('No puedes usar crédito sin seleccionar un cliente.')
-        }
-
         const customer = getCustomerCredit.get(Number(customerId))
 
         if (!customer) {
-          throw new Error('Cliente no encontrado para usar crédito.')
+          throw new Error('Cliente no encontrado para usar credito.')
         }
 
         const maxCreditAllowed = Math.max(subtotalValue - discountValue, 0)
 
         if (creditToUse > maxCreditAllowed) {
-          throw new Error('El crédito usado no puede ser mayor al total de la venta.')
+          throw new Error('El credito usado no puede ser mayor al total de la venta.')
         }
 
         if (creditToUse > Number(customer.store_credit || 0)) {
-          throw new Error('El cliente no tiene suficiente crédito disponible.')
+          throw new Error('El cliente no tiene suficiente credito disponible.')
         }
 
         const newBalance = Number(customer.store_credit || 0) - creditToUse
@@ -229,9 +286,19 @@ function registerSalesHandlers() {
           'use',
           creditToUse,
           newBalance,
-          `Uso de crédito en venta ${folio}`,
+          `Uso de credito en venta ${folio}`,
           'sale',
           saleId
+        )
+      }
+
+      if (amountPaidValue > 0) {
+        insertSalePayment.run(
+          saleId,
+          customerId ? Number(customerId) : null,
+          amountPaidValue,
+          paymentMethodValue,
+          'Pago inicial de venta'
         )
       }
 
@@ -252,7 +319,12 @@ function registerSalesHandlers() {
         change_given,
         customer_id,
         created_at,
-        credit_used
+        credit_used,
+        payment_status,
+        amount_paid,
+        amount_due,
+        due_date,
+        payment_notes
       FROM sales
       WHERE id = ?
     `).get(Number(result.saleId))
@@ -276,6 +348,9 @@ function registerSalesHandlers() {
       success: true,
       saleId: Number(result.saleId),
       folio: String(result.folio),
+      payment_status: String(savedSale?.payment_status || paymentStatusValue),
+      amount_paid: Number(savedSale?.amount_paid || 0),
+      amount_due: Number(savedSale?.amount_due || 0),
       sale: savedSale
         ? {
             id: Number(savedSale.id),
@@ -289,6 +364,11 @@ function registerSalesHandlers() {
             change_given: Number(savedSale.change_given || 0),
             customer_id: savedSale.customer_id ? Number(savedSale.customer_id) : null,
             credit_used: Number(savedSale.credit_used || 0),
+            payment_status: String(savedSale.payment_status || ''),
+            amount_paid: Number(savedSale.amount_paid || 0),
+            amount_due: Number(savedSale.amount_due || 0),
+            due_date: String(savedSale.due_date || ''),
+            payment_notes: String(savedSale.payment_notes || ''),
             created_at: String(savedSale.created_at || ''),
           }
         : null,

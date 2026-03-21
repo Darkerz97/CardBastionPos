@@ -39,8 +39,8 @@
               <span>Credito: ${{ formatPrice(sale.creditUsed) }}</span>
             </div>
             <div class="sale-card-bottom">
-              <span>Total final</span>
-              <span>${{ formatPrice(sale.total) }}</span>
+              <span>{{ formatPaymentStatus(sale.paymentStatus) }}</span>
+              <span>Pendiente: ${{ formatPrice(sale.amountDue) }}</span>
             </div>
           </div>
         </div>
@@ -68,6 +68,10 @@
             <div class="detail-row">
               <span>Metodo</span>
               <strong>{{ formatPaymentMethod(selectedDetail.sale.paymentMethod) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Estado</span>
+              <strong>{{ formatPaymentStatus(selectedDetail.sale.paymentStatus) }}</strong>
             </div>
           </div>
 
@@ -104,9 +108,17 @@
               <span>Descuento</span>
               <strong>${{ formatPrice(selectedDetail.sale.discount) }}</strong>
             </div>
-            <div class="detail-row total">
-              <span>Total cobrado</span>
+            <div class="detail-row">
+              <span>Total venta</span>
               <strong>${{ formatPrice(selectedDetail.sale.total) }}</strong>
+            </div>
+            <div class="detail-row">
+              <span>Monto pagado</span>
+              <strong>${{ formatPrice(selectedDetail.sale.amountPaid) }}</strong>
+            </div>
+            <div class="detail-row total">
+              <span>Saldo pendiente</span>
+              <strong>${{ formatPrice(selectedDetail.sale.amountDue) }}</strong>
             </div>
             <p v-if="selectedDetail.sale.customerName">Cliente: {{ selectedDetail.sale.customerName }}</p>
             <p v-else>Cliente: Publico general</p>
@@ -135,7 +147,15 @@ function formatPrice(value) {
 function formatPaymentMethod(method) {
   if (method === 'cash') return 'Efectivo'
   if (method === 'card') return 'Tarjeta'
+  if (method === 'transfer') return 'Transferencia'
   return method || 'N/D'
+}
+
+function formatPaymentStatus(status) {
+  if (status === 'paid') return 'Pagado'
+  if (status === 'partial') return 'Parcial'
+  if (status === 'pending') return 'Pendiente'
+  return status || 'N/D'
 }
 
 function formatDate(value) {

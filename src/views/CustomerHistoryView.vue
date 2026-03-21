@@ -109,6 +109,21 @@
             </div>
 
             <div class="summary-card">
+              <span>Ventas parciales</span>
+              <strong>{{ historyData.summary.partialSales || 0 }}</strong>
+            </div>
+
+            <div class="summary-card">
+              <span>Ventas pendientes</span>
+              <strong>{{ historyData.summary.pendingSales || 0 }}</strong>
+            </div>
+
+            <div class="summary-card">
+              <span>Saldo por cobrar</span>
+              <strong>${{ formatMoney(historyData.summary.totalPendingBalance || 0) }}</strong>
+            </div>
+
+            <div class="summary-card">
               <span>Ultima visita</span>
               <strong>{{ formatDate(historyData.summary.lastPurchaseAt) || 'Sin compras' }}</strong>
             </div>
@@ -135,6 +150,9 @@
                 <div class="sale-meta">
                   <span>Total bruto: ${{ formatMoney(sale.totalBeforeCredit) }}</span>
                   <span v-if="sale.creditUsed > 0">Credito usado: ${{ formatMoney(sale.creditUsed) }}</span>
+                  <span>Pagado: ${{ formatMoney(sale.amountPaid || 0) }}</span>
+                  <span>Pendiente: ${{ formatMoney(sale.amountDue || 0) }}</span>
+                  <span>Estado: {{ formatPaymentStatus(sale.paymentStatus) }}</span>
                   <span>Subtotal: ${{ formatMoney(sale.subtotal) }}</span>
                   <span>Descuento: ${{ formatMoney(sale.discount) }}</span>
                   <strong>Total cobrado: ${{ formatMoney(sale.total) }}</strong>
@@ -177,6 +195,37 @@
               Este cliente aun no tiene movimientos de credito.
             </div>
           </div>
+
+          <div class="sales-section">
+            <div class="section-header">
+              <h3>Abonos de cuentas por cobrar</h3>
+              <span>{{ historyData.receivablePayments?.length || 0 }} abonos</span>
+            </div>
+
+            <div v-if="historyData.receivablePayments?.length" class="sales-list">
+              <div
+                v-for="payment in historyData.receivablePayments"
+                :key="payment.id"
+                class="sale-row"
+              >
+                <div>
+                  <strong>{{ payment.folio }}</strong>
+                  <p>{{ formatDate(payment.createdAt) }}</p>
+                  <small>{{ formatPayment(payment.paymentMethod) }}</small>
+                </div>
+
+                <div class="sale-meta">
+                  <span>Monto: ${{ formatMoney(payment.amount) }}</span>
+                  <span>{{ payment.isInitial ? 'Pago inicial de venta' : 'Abono posterior' }}</span>
+                  <small>{{ payment.notes || 'Sin nota' }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-state small-empty">
+              Este cliente aun no tiene abonos registrados.
+            </div>
+          </div>
         </div>
 
         <div v-else class="empty-state">
@@ -207,7 +256,15 @@ function formatDate(value) {
 function formatPayment(method) {
   if (method === 'cash') return 'Efectivo'
   if (method === 'card') return 'Tarjeta'
+  if (method === 'transfer') return 'Transferencia'
   return method || 'N/D'
+}
+
+function formatPaymentStatus(status) {
+  if (status === 'paid') return 'Pagado'
+  if (status === 'partial') return 'Parcial'
+  if (status === 'pending') return 'Pendiente'
+  return status || 'N/D'
 }
 
 async function loadCustomers() {

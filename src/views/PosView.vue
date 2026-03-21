@@ -15,6 +15,7 @@
         <button class="menu-btn" @click="$router.push('/reports')">Reportes</button>
         <button class="menu-btn" @click="$router.push('/customers')">Clientes</button>
         <button class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
+        <button class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
         <button class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
       </div>
     </aside>
@@ -266,8 +267,50 @@
             </div>
           </div>
 
+          <div class="credit-box">
+            <label>Monto pagado inicial</label>
+            <input
+              v-model.number="amountPaidInitial"
+              type="number"
+              min="0"
+              step="0.01"
+              class="payment-input"
+              placeholder="0.00"
+              @input="validateInitialPayment"
+            />
+
+            <div class="summary-row" style="margin-top: 12px;">
+              <span>Estado de pago</span>
+              <strong>{{ paymentStatusLabel }}</strong>
+            </div>
+
+            <div class="summary-row" style="margin-top: 6px;">
+              <span>Saldo pendiente</span>
+              <strong>$ {{ formatPrice(pendingAmount) }}</strong>
+            </div>
+
+            <div v-if="pendingAmount > 0" style="margin-top: 12px;">
+              <label>Fecha límite (opcional)</label>
+              <input
+                v-model="dueDate"
+                type="date"
+                class="payment-input"
+              />
+            </div>
+
+            <div style="margin-top: 12px;">
+              <label>Notas de cobro (opcional)</label>
+              <textarea
+                v-model="paymentNotes"
+                class="payment-input"
+                rows="2"
+                placeholder="Ej. paga el viernes"
+              ></textarea>
+            </div>
+          </div>
+
           <div v-if="paymentMethod === 'cash'" class="cash-section">
-            <label>Monto recibido</label>
+            <label>Monto recibido en efectivo</label>
             <input
               v-model.number="cashReceived"
               type="number"
@@ -278,7 +321,7 @@
             />
 
             <div class="quick-cash-buttons">
-              <button class="quick-cash-btn" @click="setExactAmount">Exacto</button>
+              <button class="quick-cash-btn" @click="setExactAmount">Igual al pago</button>
               <button class="quick-cash-btn" @click="setCashAmount(20)">20</button>
               <button class="quick-cash-btn" @click="setCashAmount(50)">50</button>
               <button class="quick-cash-btn" @click="setCashAmount(100)">100</button>
@@ -339,6 +382,9 @@ const customerSearch = ref('')
 const customerResults = ref([])
 
 const creditToUse = ref(0)
+const amountPaidInitial = ref(0)
+const dueDate = ref('')
+const paymentNotes = ref('')
 
 async function handleCustomerSearch() {
   if (!customerSearch.value.trim()) {
@@ -391,7 +437,9 @@ const lowStockCount = computed(() => {
 
 watch(paymentMethod, (newValue) => {
   if (newValue === 'cash') {
-    cashReceived.value = Number(remainingAfterCredit.value || 0)
+    if (Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)) {
+      cashReceived.value = Number(amountPaidInitial.value || 0)
+    }
   }
 })
 
@@ -475,7 +523,10 @@ async function openPaymentModal() {
   }
 
   paymentMethod.value = 'cash'
+  amountPaidInitial.value = Number(cart.total || 0)
   cashReceived.value = Number(cart.total || 0)
+  dueDate.value = ''
+  paymentNotes.value = ''
   saleError.value = ''
   showPaymentModal.value = true
 }
@@ -483,6 +534,9 @@ async function openPaymentModal() {
 function closePaymentModal() {
   showPaymentModal.value = false
   saleError.value = ''
+  amountPaidInitial.value = 0
+  dueDate.value = ''
+  paymentNotes.value = ''
 
   nextTick(() => {
     searchInputRef.value?.focus()
@@ -490,7 +544,7 @@ function closePaymentModal() {
 }
 
 function setExactAmount() {
-  cashReceived.value = Number(remainingAfterCredit.value || 0)
+  cashReceived.value = Number(amountPaidInitial.value || 0)
 }
 
 function setCashAmount(amount) {
@@ -518,9 +572,7 @@ function validateCredit() {
     creditToUse.value = total
   }
 
-  if (paymentMethod.value === 'cash' && Number(cashReceived.value || 0) < Number(remainingAfterCredit.value || 0)) {
-    cashReceived.value = Number(remainingAfterCredit.value || 0)
-  }
+  validateInitialPayment()
 }
 
 function applyMaxCredit() {
@@ -533,8 +585,22 @@ function applyMaxCredit() {
   const total = Number(cart.total || 0)
   creditToUse.value = Math.min(available, total)
 
-  if (paymentMethod.value === 'cash' && Number(cashReceived.value || 0) < Number(remainingAfterCredit.value || 0)) {
-    cashReceived.value = Number(remainingAfterCredit.value || 0)
+  validateInitialPayment()
+}
+
+function validateInitialPayment() {
+  const remaining = Number(remainingAfterCredit.value || 0)
+
+  if (Number(amountPaidInitial.value || 0) < 0) {
+    amountPaidInitial.value = 0
+  }
+
+  if (Number(amountPaidInitial.value || 0) > remaining) {
+    amountPaidInitial.value = remaining
+  }
+
+  if (paymentMethod.value === 'cash' && Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)) {
+    cashReceived.value = Number(amountPaidInitial.value || 0)
   }
 }
 
@@ -544,9 +610,25 @@ const remainingAfterCredit = computed(() => {
   return Math.max(total - credit, 0)
 })
 
+const pendingAmount = computed(() => {
+  return Math.max(Number(remainingAfterCredit.value || 0) - Number(amountPaidInitial.value || 0), 0)
+})
+
+const paymentStatusPreview = computed(() => {
+  if (Number(pendingAmount.value || 0) <= 0) return 'paid'
+  if (Number(amountPaidInitial.value || 0) <= 0) return 'pending'
+  return 'partial'
+})
+
+const paymentStatusLabel = computed(() => {
+  if (paymentStatusPreview.value === 'paid') return 'Pagado'
+  if (paymentStatusPreview.value === 'partial') return 'Parcial'
+  return 'Pendiente'
+})
+
 const changeGiven = computed(() => {
   if (paymentMethod.value !== 'cash') return 0
-  return Math.max(Number(cashReceived.value || 0) - Number(remainingAfterCredit.value || 0), 0)
+  return Math.max(Number(cashReceived.value || 0) - Number(amountPaidInitial.value || 0), 0)
 })
 
 const filteredProducts = computed(() => {
@@ -577,6 +659,7 @@ async function loadProducts() {
 
 async function confirmSale() {
   validateCredit()
+  validateInitialPayment()
   saleError.value = ''
 
   if (!cart.items.length) {
@@ -601,11 +684,22 @@ async function confirmSale() {
     }
   }
 
+  if (Number(amountPaidInitial.value || 0) > Number(remainingAfterCredit.value || 0)) {
+    saleError.value = 'El monto pagado inicial no puede exceder el total neto.'
+    return
+  }
+
+  if (Number(pendingAmount.value || 0) > 0 && !selectedCustomer.value) {
+    saleError.value = 'Para ventas parciales o pendientes debes seleccionar un cliente.'
+    return
+  }
+
   if (
     paymentMethod.value === 'cash' &&
-    Number(cashReceived.value || 0) < Number(remainingAfterCredit.value || 0)
+    Number(amountPaidInitial.value || 0) > 0 &&
+    Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)
   ) {
-    saleError.value = 'El monto recibido es menor al total restante.'
+    saleError.value = 'El monto recibido en efectivo es menor al pago inicial.'
     return
   }
 
@@ -629,6 +723,9 @@ async function confirmSale() {
       change_given: paymentMethod.value === 'cash' ? Number(changeGiven.value || 0) : 0,
       customerId: selectedCustomer.value?.id || null,
       credit_used: Number(creditToUse.value || 0),
+      amount_paid: Number(amountPaidInitial.value || 0),
+      due_date: dueDate.value || null,
+      payment_notes: String(paymentNotes.value || ''),
     }
 
     const result = await window.posAPI.createSale(payload)
@@ -642,6 +739,9 @@ async function confirmSale() {
     clearCustomer()
     search.value = ''
     creditToUse.value = 0
+    amountPaidInitial.value = 0
+    dueDate.value = ''
+    paymentNotes.value = ''
     cashReceived.value = 0
 
     closePaymentModal()
@@ -995,7 +1095,7 @@ onMounted(async () => {
 
 .modal {
   width: 100%;
-  max-width: 460px;
+  max-width: 980px;
   background: #232323;
   border: 1px solid #323232;
   border-radius: 18px;
@@ -1040,6 +1140,16 @@ onMounted(async () => {
   color: white;
   font-size: 16px;
   margin-top: 8px;
+}
+
+.payment-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.payment-summary > .summary-row:first-child {
+  grid-column: 1 / -1;
 }
 
 .quick-cash-buttons {
@@ -1202,6 +1312,16 @@ onMounted(async () => {
   padding: 12px;
   background: #2c2c2c;
   border-radius: 12px;
+}
+
+@media (max-width: 900px) {
+  .modal {
+    max-width: 460px;
+  }
+
+  .payment-summary {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
 

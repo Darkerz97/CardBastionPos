@@ -8,6 +8,7 @@ import ReportsView from '../views/ReportsView.vue'
 import CustomersView from '../views/CustomersView.vue'
 import CustomerHistoryView from '../views/CustomerHistoryView.vue'
 import TournamentsView from '../views/TournamentsView.vue'
+import ReceivablesView from '../views/ReceivablesView.vue'
 
 
 const routes = [
@@ -19,6 +20,7 @@ const routes = [
   {path: '/reports', name: 'reports', component: ReportsView },
   {path: '/customers', name: 'customers', component: CustomersView },
   { path: '/customers/history', name: 'customer-history', component: CustomerHistoryView },
+  { path: '/receivables', name: 'receivables', component: ReceivablesView },
   { path: '/tournaments', name: 'tournaments', component: TournamentsView },
 ]
 

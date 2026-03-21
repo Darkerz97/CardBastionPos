@@ -114,6 +114,9 @@ function registerCustomerHandlers() {
         COALESCE(SUM(credit_used), 0) as total_credit_used,
         COALESCE(SUM(total + credit_used), 0) as gross_spent,
         COALESCE(SUM(CASE WHEN credit_used > 0 THEN 1 ELSE 0 END), 0) as sales_with_credit,
+        COALESCE(SUM(CASE WHEN payment_status = 'partial' THEN 1 ELSE 0 END), 0) as partial_sales,
+        COALESCE(SUM(CASE WHEN payment_status = 'pending' THEN 1 ELSE 0 END), 0) as pending_sales,
+        COALESCE(SUM(COALESCE(amount_due, 0)), 0) as total_pending_balance,
         COALESCE(AVG(total), 0) as average_ticket,
         MAX(created_at) as last_purchase_at
       FROM sales
@@ -136,6 +139,11 @@ function registerCustomerHandlers() {
         discount,
         total,
         credit_used,
+        COALESCE(amount_paid, 0) as amount_paid,
+        COALESCE(amount_due, 0) as amount_due,
+        COALESCE(payment_status, 'paid') as payment_status,
+        due_date,
+        payment_notes,
         payment_method,
         cash_received,
         change_given,
@@ -144,6 +152,22 @@ function registerCustomerHandlers() {
       FROM sales
       WHERE customer_id = ?
       ORDER BY created_at DESC
+    `).all(id)
+
+    const receivablePayments = db.prepare(`
+      SELECT
+        sp.id,
+        sp.sale_id,
+        s.folio,
+        sp.amount,
+        sp.payment_method,
+        sp.notes,
+        sp.is_initial,
+        sp.created_at
+      FROM sale_payments sp
+      INNER JOIN sales s ON s.id = sp.sale_id
+      WHERE sp.customer_id = ?
+      ORDER BY sp.created_at DESC, sp.id DESC
     `).all(id)
 
     const creditMovements = db.prepare(`
@@ -180,6 +204,9 @@ function registerCustomerHandlers() {
         totalCreditUsed: Number(summary?.total_credit_used || 0),
         grossSpent: Number(summary?.gross_spent || 0),
         salesWithCredit: Number(summary?.sales_with_credit || 0),
+        partialSales: Number(summary?.partial_sales || 0),
+        pendingSales: Number(summary?.pending_sales || 0),
+        totalPendingBalance: Number(summary?.total_pending_balance || 0),
         totalCreditEarned: Number(creditSummary?.total_earned || 0),
         totalCreditMovementUsed: Number(creditSummary?.total_used || 0),
         averageTicket: Number(summary?.average_ticket || 0),
@@ -193,10 +220,25 @@ function registerCustomerHandlers() {
         total: Number(row.total || 0),
         creditUsed: Number(row.credit_used || 0),
         totalBeforeCredit: Number(row.total || 0) + Number(row.credit_used || 0),
+        amountPaid: Number(row.amount_paid || 0),
+        amountDue: Number(row.amount_due || 0),
+        paymentStatus: String(row.payment_status || 'paid'),
+        dueDate: String(row.due_date || ''),
+        paymentNotes: String(row.payment_notes || ''),
         paymentMethod: String(row.payment_method || ''),
         cashReceived: Number(row.cash_received || 0),
         changeGiven: Number(row.change_given || 0),
         status: String(row.status || ''),
+        createdAt: String(row.created_at || ''),
+      })),
+      receivablePayments: (receivablePayments || []).map(row => ({
+        id: Number(row.id),
+        saleId: Number(row.sale_id),
+        folio: String(row.folio || ''),
+        amount: Number(row.amount || 0),
+        paymentMethod: String(row.payment_method || ''),
+        notes: String(row.notes || ''),
+        isInitial: Number(row.is_initial || 0) === 1,
         createdAt: String(row.created_at || ''),
       })),
       creditMovements: (creditMovements || []).map(row => ({

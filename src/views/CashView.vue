@@ -69,6 +69,18 @@
           <span>Ventas con tarjeta</span>
           <strong>${{ formatPrice(summary?.cardSalesAmount) }}</strong>
         </div>
+        <div class="summary-row">
+          <span>Abonos cobrados</span>
+          <strong>{{ summary?.receivablePaymentsCount || 0 }}</strong>
+        </div>
+        <div class="summary-row">
+          <span>Abonos en efectivo</span>
+          <strong>${{ formatPrice(summary?.receivableCashAmount) }}</strong>
+        </div>
+        <div class="summary-row">
+          <span>Abonos con tarjeta</span>
+          <strong>${{ formatPrice(summary?.receivableCardAmount) }}</strong>
+        </div>
         <div class="summary-row total">
           <span>Efectivo esperado</span>
           <strong>${{ formatPrice(summary?.expectedAmount) }}</strong>
@@ -136,6 +148,14 @@
       <div class="summary-row">
         <span>Efectivo esperado</span>
         <strong>${{ formatPrice(closeResult.expectedAmount) }}</strong>
+      </div>
+      <div class="summary-row">
+        <span>Abonos en efectivo</span>
+        <strong>${{ formatPrice(closeResult.receivableCashAmount) }}</strong>
+      </div>
+      <div class="summary-row">
+        <span>Abonos con tarjeta</span>
+        <strong>${{ formatPrice(closeResult.receivableCardAmount) }}</strong>
       </div>
       <div class="summary-row">
         <span>Efectivo contado</span>

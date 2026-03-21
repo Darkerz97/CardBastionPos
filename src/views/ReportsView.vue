@@ -81,6 +81,26 @@
       </div>
 
       <div class="summary-card">
+        <span>Ventas parciales</span>
+        <strong>{{ report.summary.partialSales || 0 }}</strong>
+      </div>
+
+      <div class="summary-card">
+        <span>Ventas pendientes</span>
+        <strong>{{ report.summary.pendingSales || 0 }}</strong>
+      </div>
+
+      <div class="summary-card">
+        <span>Saldo por cobrar</span>
+        <strong>${{ formatMoney(report.summary.totalDueAmount || 0) }}</strong>
+      </div>
+
+      <div class="summary-card">
+        <span>Abonos hoy</span>
+        <strong>${{ formatMoney(report.receivablePaymentsToday?.totalAmount || 0) }}</strong>
+      </div>
+
+      <div class="summary-card">
         <span>Ticket promedio</span>
         <strong>${{ formatMoney(report.summary.averageTicket) }}</strong>
       </div>

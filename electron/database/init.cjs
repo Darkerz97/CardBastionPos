@@ -81,6 +81,41 @@ function initializeDatabase() {
   }
 
   try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN payment_status TEXT DEFAULT 'paid'`).run()
+    console.log('Columna payment_status agregada a sales')
+  } catch (error) {
+    console.log('payment_status ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN amount_paid REAL DEFAULT 0`).run()
+    console.log('Columna amount_paid agregada a sales')
+  } catch (error) {
+    console.log('amount_paid ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN amount_due REAL DEFAULT 0`).run()
+    console.log('Columna amount_due agregada a sales')
+  } catch (error) {
+    console.log('amount_due ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN due_date DATETIME`).run()
+    console.log('Columna due_date agregada a sales')
+  } catch (error) {
+    console.log('due_date ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN payment_notes TEXT`).run()
+    console.log('Columna payment_notes agregada a sales')
+  } catch (error) {
+    console.log('payment_notes ya existe en sales')
+  }
+
+  try {
     db.prepare(`ALTER TABLE products ADD COLUMN min_stock REAL DEFAULT 0`).run()
     console.log('Columna min_stock agregada a products')
   } catch (error) {
@@ -128,6 +163,51 @@ function initializeDatabase() {
       notes TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS sale_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      sale_id INTEGER NOT NULL,
+      customer_id INTEGER,
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      notes TEXT,
+      is_initial INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+    )
+  `).run()
+
+  try {
+    db.prepare(`ALTER TABLE sale_payments ADD COLUMN is_initial INTEGER NOT NULL DEFAULT 0`).run()
+    console.log('Columna is_initial agregada a sale_payments')
+  } catch (error) {
+    console.log('is_initial ya existe en sale_payments')
+  }
+
+  // Backfill seguro para ventas existentes antes de cuentas por cobrar.
+  db.prepare(`
+    UPDATE sales
+    SET amount_paid = total
+    WHERE amount_paid IS NULL
+  `).run()
+
+  db.prepare(`
+    UPDATE sales
+    SET amount_due = 0
+    WHERE amount_due IS NULL
+  `).run()
+
+  db.prepare(`
+    UPDATE sales
+    SET payment_status = CASE
+      WHEN COALESCE(amount_due, 0) <= 0 THEN 'paid'
+      WHEN COALESCE(amount_paid, 0) <= 0 THEN 'pending'
+      ELSE 'partial'
+    END
+    WHERE payment_status IS NULL OR trim(payment_status) = ''
   `).run()
 
   db.prepare(`

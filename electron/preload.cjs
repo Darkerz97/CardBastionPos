@@ -70,6 +70,7 @@ contextBridge.exposeInMainWorld('posAPI', {
   exportSalesCsv: (filters) => ipcRenderer.invoke('reports:exportSalesCsv', filters),
   exportCashCsv: (filters) => ipcRenderer.invoke('reports:exportCashCsv', filters),
   getSalesDashboard: (filters) => ipcRenderer.invoke('reports:salesDashboard', filters),
+  getReceivablesDashboard: () => ipcRenderer.invoke('reports:receivablesDashboard'),
 
   // =========================
   // Clientes
@@ -107,6 +108,17 @@ contextBridge.exposeInMainWorld('posAPI', {
   addStockEntry: (payload) => ipcRenderer.invoke('inventory:addStockEntry', payload),
   getLowStockProducts: () => ipcRenderer.invoke('inventory:getLowStockProducts'),
   getInventorySummary: (payload) => ipcRenderer.invoke('inventory:getInventorySummary', payload),
+
+  // =========================
+  // Cuentas por cobrar / fiado
+  // =========================
+  getReceivables: (filters) => ipcRenderer.invoke('receivables:list', filters),
+  getReceivableById: (saleId) => ipcRenderer.invoke('receivables:getById', saleId),
+  getReceivablesByCustomer: (customerId) => ipcRenderer.invoke('receivables:getByCustomer', customerId),
+  addReceivablePayment: (payload) => ipcRenderer.invoke('receivables:addPayment', payload),
+  getReceivablesSummary: () => ipcRenderer.invoke('receivables:getSummary'),
+  getOverdueReceivables: () => ipcRenderer.invoke('receivables:getOverdue'),
+  getCustomerReceivableBalance: (customerId) => ipcRenderer.invoke('receivables:getCustomerBalance', customerId),
 
   // Aliases de compatibilidad
   listCustomers: () => ipcRenderer.invoke('customers:list'),
