@@ -3,324 +3,254 @@
     <header class="products-header">
       <div>
         <h1>Productos e inventario</h1>
-        <p>Alta manual, ajustes de stock, entradas y movimientos</p>
+        <p>Normales + singles Star City</p>
       </div>
-
       <div class="header-actions">
-        <button class="secondary-btn" @click="handleExportTemplate">
-          Descargar plantilla
-        </button>
-        <button class="secondary-btn" @click="handleImportExcel">
-          Importar Excel
-        </button>
-        <button class="back-btn" @click="$router.push('/')">
-          Volver al POS
-        </button>
+        <button class="secondary-btn" @click="handleExportTemplate">Plantilla</button>
+        <button class="secondary-btn" @click="handleImportExcel">Importar</button>
+        <button class="secondary-btn" @click="handleBatchUpdateSingles">SCG lote</button>
+        <button class="back-btn" @click="$router.push('/')">Volver</button>
       </div>
     </header>
 
     <section class="products-grid">
       <div class="card">
-        <div class="form-title-row">
-          <h2>{{ editingId ? 'Editar producto' : 'Agregar producto' }}</h2>
-          <button v-if="editingId" class="cancel-btn" @click="cancelEdit">
-            Cancelar edicion
-          </button>
-        </div>
-
-        <div v-if="lowStockCount > 0" class="stock-alert-box">
-          Hay {{ lowStockCount }} producto(s) activos con stock bajo.
-        </div>
+        <h2>{{ editingId ? 'Editar' : 'Agregar' }} producto</h2>
 
         <div class="form-grid">
           <div>
-            <label>SKU</label>
-            <input v-model="form.sku" class="input" />
+            <label>Tipo</label>
+            <select v-model="form.product_type" class="input">
+              <option value="normal">Normal</option>
+              <option value="single">Single</option>
+            </select>
           </div>
-
-          <div>
-            <label>Codigo de barras</label>
-            <input v-model="form.barcode" class="input" />
-          </div>
-
-          <div class="full">
-            <label>Nombre</label>
-            <input v-model="form.name" class="input" />
-          </div>
-
           <div>
             <label>Categoria</label>
             <input v-model="form.category" class="input" />
           </div>
+          <div><label>SKU</label><input v-model="form.sku" class="input" /></div>
+          <div><label>Codigo barras</label><input v-model="form.barcode" class="input" /></div>
+          <div class="full"><label>Nombre</label><input v-model="form.name" class="input" /></div>
 
-          <div>
-            <label>Precio</label>
-            <input v-model.number="form.price" type="number" min="0" step="0.01" class="input" />
-          </div>
+          <template v-if="isSingleForm">
+            <div class="full single-helper">
+              <strong>Flujo rapido para singles</strong>
+              <p>Captura el nombre, abre Star City, pega la URL y el sistema intentara llenar los demas datos automaticamente.</p>
+            </div>
+          </template>
 
-          <div>
-            <label>Costo</label>
-            <input v-model.number="form.cost" type="number" min="0" step="0.01" class="input" />
-          </div>
+          <div><label>{{ isSingleForm ? 'Precio MXN autocalculado' : 'Precio MXN' }}</label><input v-model.number="form.price" type="number" min="0" step="0.01" class="input" :readonly="isSingleForm" /></div>
+          <div><label>Costo</label><input v-model.number="form.cost" type="number" min="0" step="0.01" class="input" /></div>
+          <div><label>Stock</label><input v-model.number="form.stock" type="number" min="0" step="1" class="input" /></div>
+          <div><label>Stock min</label><input v-model.number="form.min_stock" type="number" min="0" step="1" class="input" /></div>
 
-          <div>
-            <label>Stock</label>
-            <input v-model.number="form.stock" type="number" min="0" step="1" class="input" />
-          </div>
-
-          <div>
-            <label>Stock minimo</label>
-            <input v-model.number="form.min_stock" type="number" min="0" step="1" class="input" />
-          </div>
+          <template v-if="isSingleForm">
+            <div><label>SCG USD</label><input v-model.number="form.starcity_price_usd" class="input" type="number" min="0" step="0.01" /></div>
+            <div class="full"><label>SCG URL</label><input v-model="form.starcity_url" class="input" /></div>
+            <div class="full row-actions">
+              <button class="secondary-btn" @click="openLinkModal">Vincular SCG</button>
+              <button class="secondary-btn" @click="handleUpdateSinglePrice" :disabled="!editingId">Sync SCG</button>
+              <button class="secondary-btn" @click="showSingleDetails = !showSingleDetails">
+                {{ showSingleDetails ? 'Ocultar detalles' : 'Ver detalles' }}
+              </button>
+            </div>
+            <div v-if="showSingleDetails" class="full single-details">
+              <div class="form-grid">
+                <div>
+                  <label>Juego</label>
+                  <select v-model="form.game" class="input">
+                    <option value="">Selecciona</option>
+                    <option v-for="option in gameOptions" :key="option" :value="option">{{ option }}</option>
+                  </select>
+                </div>
+                <div><label>Set</label><input v-model="form.set_name" class="input" /></div>
+                <div><label>Set code</label><input v-model="form.set_code" class="input" /></div>
+                <div><label>Collector</label><input v-model="form.collector_number" class="input" /></div>
+                <div>
+                  <label>Finish</label>
+                  <select v-model="form.finish" class="input">
+                    <option value="">Selecciona</option>
+                    <option v-for="option in finishOptions" :key="option" :value="option">{{ option }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Idioma</label>
+                  <select v-model="form.language" class="input">
+                    <option value="">Selecciona</option>
+                    <option v-for="option in languageOptions" :key="option" :value="option">{{ option }}</option>
+                  </select>
+                </div>
+                <div>
+                  <label>Condicion</label>
+                  <select v-model="form.card_condition" class="input">
+                    <option value="">Selecciona</option>
+                    <option v-for="option in cardConditionOptions" :key="option" :value="option">{{ option }}</option>
+                  </select>
+                </div>
+                <div><label>Scryfall ID</label><input v-model="form.scryfall_id" class="input" /></div>
+                <div><label>SCG key</label><input v-model="form.starcity_variant_key" class="input" /></div>
+                <div><label>Pricing mode</label><select v-model="form.pricing_mode" class="input"><option value="manual">manual</option><option value="starcity_direct">starcity_direct</option><option value="starcity_formula">starcity_formula</option></select></div>
+                <div><label>Formula type</label><select v-model="form.pricing_formula_type" class="input"><option value="">auto</option><option value="multiplier">multiplier</option><option value="fixed_markup">fixed_markup</option><option value="multiplier_plus_fixed">multiplier_plus_fixed</option></select></div>
+                <div><label>Formula val</label><input v-model.number="form.pricing_formula_value" class="input" type="number" min="0" step="0.01" /></div>
+              </div>
+            </div>
+            <div class="full">
+              <h3>Config global pricing</h3>
+              <div class="form-grid">
+                <div><label>TC</label><input v-model.number="pricingConfig.exchangeRate" class="input" type="number" step="0.01" /></div>
+                <div><label>Multiplicador</label><input v-model.number="pricingConfig.multiplier" class="input" type="number" step="0.01" /></div>
+                <div><label>Markup</label><input v-model.number="pricingConfig.fixedMarkup" class="input" type="number" step="0.01" /></div>
+                <div><label>Redondeo</label><select v-model="pricingConfig.roundingMode" class="input"><option value="none">none</option><option value="nearest_1">nearest_1</option><option value="nearest_5">nearest_5</option><option value="nearest_10">nearest_10</option><option value="ceil_1">ceil_1</option><option value="ceil_5">ceil_5</option></select></div>
+              </div>
+              <button class="secondary-btn" @click="savePricingConfig">Guardar config</button>
+            </div>
+          </template>
 
           <div class="full">
             <label>Imagen</label>
-
-            <div class="image-picker-row">
-              <input
-                v-model="form.image"
-                class="input"
-                placeholder="Nombre de imagen"
-                readonly
-              />
-              <button
-                type="button"
-                class="secondary-btn small-btn"
-                @click="handleSelectImage"
-              >
-                Seleccionar
-              </button>
-            </div>
-
-            <div v-if="imagePreviewUrl" class="image-preview-box">
-              <img
-                :src="imagePreviewUrl"
-                alt="Preview"
-                class="image-preview"
-                @error="handlePreviewError"
-              />
-            </div>
-            <div v-else class="image-preview-empty">
-              Sin preview de imagen
+            <div class="row-actions">
+              <input v-model="form.image" class="input" readonly />
+              <button class="secondary-btn" @click="handleSelectImage">Seleccionar</button>
             </div>
           </div>
         </div>
 
-        <div v-if="message" class="message success">
-          {{ message }}
-        </div>
+        <div v-if="message" class="message success">{{ message }}</div>
+        <div v-if="errorMessage" class="message error">{{ errorMessage }}</div>
 
-        <div v-if="errorMessage" class="message error">
-          {{ errorMessage }}
+        <div class="row-actions" style="margin-top:12px;">
+          <button class="primary-btn" @click="handleSaveProduct">Guardar</button>
+          <button v-if="editingId" class="cancel-btn" @click="cancelEdit">Cancelar</button>
         </div>
-
-        <button class="primary-btn" @click="handleSaveProduct">
-          {{ editingId ? 'Guardar cambios' : 'Guardar producto' }}
-        </button>
       </div>
 
-      <div class="right-column">
-        <div class="card">
-          <div class="list-header">
-            <h2>Productos activos</h2>
-            <span>{{ products.length }} productos</span>
-          </div>
-
-          <div v-if="products.length" class="product-list">
-            <div
-              v-for="product in products"
-              :key="product.id"
-              class="product-row"
-              @click="selectProduct(product)"
-            >
-              <div class="product-main">
-                <strong>
-                  {{ product.name }}
-                  <span v-if="isLowStock(product)" class="low-stock-badge">
-                    Stock bajo
-                  </span>
-                </strong>
-                <p>{{ product.sku || 'Sin SKU' }} · {{ product.category || 'Sin categoria' }}</p>
-                <small>{{ product.barcode || 'Sin codigo de barras' }}</small>
-                <small>
-                  Minimo: {{ Number(product.min_stock || 0) }}
-                </small>
-              </div>
-
-              <div class="product-meta">
-                <span :class="{ 'low-stock-text': isLowStock(product) }">
-                  Stock: {{ Number(product.stock || 0) }}
-                </span>
-                <strong>${{ formatPrice(product.price) }}</strong>
-
-                <div class="inventory-actions" @click.stop>
-                  <button class="small-action-btn" @click="openAdjustModal(product)">
-                    Ajustar stock
-                  </button>
-                  <button class="small-action-btn" @click="openEntryModal(product)">
-                    Entrada
-                  </button>
-                  <button class="small-action-btn" @click="openMovementsModal(product)">
-                    Movimientos
-                  </button>
-                </div>
-
-                <button class="deactivate-btn" @click.stop="handleDeactivateProduct(product)">
-                  Desactivar
-                </button>
-              </div>
+      <div class="card">
+        <div class="list-toolbar">
+          <h2>Activos ({{ filteredActiveProducts.length }})</h2>
+          <input v-model="productSearch" class="input search-input" placeholder="Buscar por nombre, SKU, barcode, categoria, set..." />
+          <select v-model="listFilterType" class="input compact">
+            <option value="all">Todos</option>
+            <option value="normal">Normales</option>
+            <option value="single">Singles</option>
+          </select>
+        </div>
+        <div class="product-list">
+          <div v-for="product in filteredActiveProducts" :key="product.id" class="product-row" @click="selectProduct(product)">
+            <div>
+              <strong>{{ product.name }} <small v-if="isSingleProduct(product)">[single]</small></strong>
+              <p>{{ product.sku || 'Sin SKU' }} | {{ product.category || 'Sin categoria' }}</p>
+              <p>Stock: {{ Number(product.stock||0) }} | Min: {{ Number(product.min_stock||0) }}</p>
+              <p v-if="isSingleProduct(product)">{{ product.set_name || 'Sin set' }} | {{ product.finish || 'N/D' }} | SCG ${{ formatPrice(product.starcity_price_usd||0) }}</p>
             </div>
-          </div>
-
-          <div v-else class="empty-state">
-            No hay productos activos.
+            <div class="product-actions" @click.stop>
+              <strong>${{ formatPrice(product.price) }}</strong>
+              <button class="small-btn" @click="openAdjustModal(product)">Ajustar</button>
+              <button class="small-btn" @click="openEntryModal(product)">Entrada</button>
+              <button class="small-btn" @click="openMovementsModal(product)">Movs</button>
+              <button v-if="isSingleProduct(product)" class="small-btn" @click="openLinkModal(product)">Vincular SCG</button>
+              <button v-if="isSingleProduct(product)" class="small-btn" @click="handleUpdateSinglePrice(product)">Sync SCG</button>
+              <button class="danger-btn" @click="handleDeactivateProduct(product)">Desactivar</button>
+            </div>
           </div>
         </div>
-
-        <div class="card inactive-card">
-          <div class="list-header">
-            <h2>Productos desactivados</h2>
-            <span>{{ inactiveProducts.length }} productos</span>
-          </div>
-
-          <div v-if="inactiveProducts.length" class="product-list">
-            <div
-              v-for="product in inactiveProducts"
-              :key="product.id"
-              class="product-row inactive-row"
-            >
-              <div class="product-main">
-                <strong>{{ product.name }}</strong>
-                <p>{{ product.sku || 'Sin SKU' }} · {{ product.category || 'Sin categoria' }}</p>
-                <small>{{ product.barcode || 'Sin codigo de barras' }}</small>
-              </div>
-
-              <div class="product-meta">
-                <span :class="{ 'low-stock-text': isLowStock(product) }">
-                  Stock: {{ Number(product.stock || 0) }}
-                </span>
-                <strong>${{ formatPrice(product.price) }}</strong>
-
-                <button class="reactivate-btn" @click="handleReactivateProduct(product)">
-                  Reactivar
-                </button>
-              </div>
+        <div class="list-toolbar" style="margin-top:18px;">
+          <h2>Desactivados ({{ filteredInactiveProducts.length }})</h2>
+          <input v-model="inactiveProductSearch" class="input search-input" placeholder="Buscar desactivados..." />
+        </div>
+        <div class="product-list">
+          <div v-for="product in filteredInactiveProducts" :key="product.id" class="product-row inactive" @click.stop>
+            <div>
+              <strong>{{ product.name }}</strong>
+              <p>{{ product.sku || 'Sin SKU' }}</p>
             </div>
-          </div>
-
-          <div v-else class="empty-state">
-            No hay productos desactivados.
+            <div class="product-actions">
+              <strong>${{ formatPrice(product.price) }}</strong>
+              <button class="small-btn" @click="handleReactivateProduct(product)">Reactivar</button>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
-    <div v-if="adjustModal.open" class="modal-backdrop" @click.self="closeAdjustModal">
+    <div v-if="adjustModal.open" class="modal-backdrop" @click.self="adjustModal.open=false">
       <div class="modal-card">
-        <h3>Ajustar stock</h3>
-        <p class="modal-subtitle">{{ adjustModal.productName }} · Stock actual: {{ adjustModal.currentStock }}</p>
+        <h3>Ajustar stock - {{ adjustModal.productName }}</h3>
+        <div class="form-grid">
+          <div><label>Modo</label><select v-model="adjustModal.mode" class="input"><option value="add">Sumar</option><option value="remove">Restar</option><option value="set">Fijar</option></select></div>
+          <div><label>Cantidad</label><input v-model.number="adjustModal.quantity" class="input" type="number" min="0" /></div>
+          <div class="full"><label>Motivo</label><textarea v-model="adjustModal.notes" class="input" rows="3"></textarea></div>
+        </div>
+        <div class="row-actions"><button class="cancel-btn" @click="adjustModal.open=false">Cancelar</button><button class="primary-btn" @click="handleSubmitAdjust">Guardar</button></div>
+      </div>
+    </div>
 
-        <div class="modal-grid">
+    <div v-if="entryModal.open" class="modal-backdrop" @click.self="entryModal.open=false">
+      <div class="modal-card">
+        <h3>Entrada - {{ entryModal.productName }}</h3>
+        <div class="form-grid">
+          <div><label>Cantidad</label><input v-model.number="entryModal.quantity" class="input" type="number" min="0" /></div>
+          <div><label>Costo opcional</label><input v-model="entryModal.cost" class="input" type="number" min="0" step="0.01" /></div>
+          <div class="full"><label>Referencia</label><input v-model="entryModal.reference" class="input" /></div>
+          <div class="full"><label>Nota</label><textarea v-model="entryModal.notes" class="input" rows="3"></textarea></div>
+        </div>
+        <div class="row-actions"><button class="cancel-btn" @click="entryModal.open=false">Cancelar</button><button class="primary-btn" @click="handleSubmitEntry">Guardar</button></div>
+      </div>
+    </div>
+
+    <div v-if="movementsModal.open" class="modal-backdrop" @click.self="movementsModal.open=false">
+      <div class="modal-card large">
+        <h3>Movimientos - {{ movementsModal.productName }}</h3>
+        <table class="report-table" v-if="movementsList.length">
+          <thead><tr><th>Fecha</th><th>Tipo</th><th>Cant</th><th>Antes</th><th>Despues</th><th>Ref</th><th>Notas</th></tr></thead>
+          <tbody>
+            <tr v-for="mv in movementsList" :key="mv.id"><td>{{ formatDate(mv.createdAt) }}</td><td>{{ mv.type }}</td><td>{{ mv.quantity }}</td><td>{{ mv.stockBefore }}</td><td>{{ mv.stockAfter }}</td><td>{{ formatReference(mv.referenceType,mv.referenceId) }}</td><td>{{ mv.notes || '-' }}</td></tr>
+          </tbody>
+        </table>
+        <div v-else class="empty">Sin movimientos</div>
+      </div>
+    </div>
+
+    <div v-if="linkModal.open" class="modal-backdrop" @click.self="linkModal.open=false">
+      <div class="modal-card large">
+        <h3>Vincular Star City - {{ linkModal.productName }}</h3>
+        <div class="form-grid">
+          <div class="full"><label>Busqueda</label><input v-model="linkModal.query" class="input" @keydown.enter.prevent="handleSearchSinglesCatalog" /></div>
           <div>
-            <label>Modo</label>
-            <select v-model="adjustModal.mode" class="input">
-              <option value="add">Sumar</option>
-              <option value="remove">Restar</option>
-              <option value="set">Fijar</option>
+            <label>TCG</label>
+            <select v-model="linkModal.game" class="input">
+              <option value="Magic: The Gathering">Magic: The Gathering</option>
             </select>
           </div>
-
-          <div>
-            <label>Cantidad</label>
-            <input v-model.number="adjustModal.quantity" class="input" type="number" min="0" step="1" />
-          </div>
-
           <div class="full">
-            <label>Motivo</label>
-            <textarea v-model="adjustModal.notes" class="input" rows="3" placeholder="Motivo obligatorio"></textarea>
+            <label>URL manual de Star City</label>
+            <input v-model="linkModal.manualUrl" class="input" placeholder="Pega aqui la URL exacta de la carta en Star City" />
           </div>
         </div>
-
-        <div class="modal-actions">
-          <button class="cancel-btn" @click="closeAdjustModal">Cancelar</button>
-          <button class="primary-btn inline" @click="handleSubmitAdjust">Guardar ajuste</button>
+        <div class="row-actions">
+          <button class="secondary-btn" type="button" @click="handleOpenStarCitySearch">
+            Abrir en navegador
+          </button>
+          <button class="secondary-btn" type="button" @click="handleSearchSinglesCatalog" :disabled="linkSearchLoading">
+            {{ linkSearchLoading ? 'Buscando...' : 'Buscar' }}
+          </button>
+          <button class="secondary-btn" type="button" @click="handleImportStarCityUrl" :disabled="linkImportLoading">
+            {{ linkImportLoading ? 'Importando...' : 'Importar URL' }}
+          </button>
+          <span v-if="linkSearchLoading" class="search-status">Consultando Star City...</span>
+          <span v-if="linkImportLoading" class="search-status">Leyendo precio desde la URL...</span>
         </div>
-      </div>
-    </div>
-
-    <div v-if="entryModal.open" class="modal-backdrop" @click.self="closeEntryModal">
-      <div class="modal-card">
-        <h3>Entrada de mercancia</h3>
-        <p class="modal-subtitle">{{ entryModal.productName }} · Stock actual: {{ entryModal.currentStock }}</p>
-
-        <div class="modal-grid">
-          <div>
-            <label>Cantidad</label>
-            <input v-model.number="entryModal.quantity" class="input" type="number" min="0" step="1" />
-          </div>
-
-          <div>
-            <label>Costo (opcional)</label>
-            <input v-model="entryModal.cost" class="input" type="number" min="0" step="0.01" />
-          </div>
-
-          <div class="full">
-            <label>Referencia (opcional)</label>
-            <input v-model="entryModal.reference" class="input" placeholder="Compra, factura, folio" />
-          </div>
-
-          <div class="full">
-            <label>Nota</label>
-            <textarea v-model="entryModal.notes" class="input" rows="3" placeholder="Detalle de la entrada"></textarea>
-          </div>
-        </div>
-
-        <div class="modal-actions">
-          <button class="cancel-btn" @click="closeEntryModal">Cancelar</button>
-          <button class="primary-btn inline" @click="handleSubmitEntry">Registrar entrada</button>
-        </div>
-      </div>
-    </div>
-
-    <div v-if="movementsModal.open" class="modal-backdrop" @click.self="closeMovementsModal">
-      <div class="modal-card large">
-        <h3>Movimientos de inventario</h3>
-        <p class="modal-subtitle">{{ movementsModal.productName }}</p>
-
-        <div v-if="movementsLoading" class="empty-state">Cargando movimientos...</div>
-
-        <div v-else-if="movementsList.length" class="table-wrap">
-          <table class="report-table">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Tipo</th>
-                <th>Cantidad</th>
-                <th>Antes</th>
-                <th>Despues</th>
-                <th>Referencia</th>
-                <th>Notas</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="mv in movementsList" :key="mv.id">
-                <td>{{ formatDate(mv.createdAt) }}</td>
-                <td>{{ formatMovementType(mv.type) }}</td>
-                <td>{{ Number(mv.quantity || 0) }}</td>
-                <td>{{ Number(mv.stockBefore || 0) }}</td>
-                <td>{{ Number(mv.stockAfter || 0) }}</td>
-                <td>{{ formatReference(mv.referenceType, mv.referenceId) }}</td>
-                <td>{{ mv.notes || '-' }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-else class="empty-state">Este producto aun no tiene movimientos.</div>
-
-        <div class="modal-actions">
-          <button class="cancel-btn" @click="closeMovementsModal">Cerrar</button>
-        </div>
+        <div v-if="linkSearchMessage" class="message success modal-message">{{ linkSearchMessage }}</div>
+        <div v-if="linkSearchError" class="message error modal-message">{{ linkSearchError }}</div>
+        <table class="report-table" v-if="linkModal.results.length">
+          <thead><tr><th>Titulo</th><th>USD</th><th>URL</th><th></th></tr></thead>
+          <tbody>
+            <tr v-for="result in linkModal.results" :key="result.variantKey">
+              <td>{{ result.title }}</td><td>${{ formatPrice(result.priceUsd||0) }}</td><td>{{ result.url }}</td>
+              <td><button class="small-btn" @click="applyLinkResult(result)">Seleccionar</button></td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -328,781 +258,197 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-
+const gameOptions = ['Magic: The Gathering', 'Pokemon', 'Yu-Gi-Oh!', 'One Piece', 'Lorcana', 'Star Wars Unlimited', 'Flesh and Blood']
+const finishOptions = ['nonfoil', 'foil', 'etched', 'surge foil']
+const languageOptions = ['EN', 'ES', 'JP', 'DE', 'FR', 'IT', 'PT', 'KO', 'CN', 'TW']
+const cardConditionOptions = ['NM', 'LP', 'MP', 'HP', 'DMG']
 const products = ref([])
 const inactiveProducts = ref([])
+const listFilterType = ref('all')
+const productSearch = ref('')
+const inactiveProductSearch = ref('')
 const message = ref('')
 const errorMessage = ref('')
 const editingId = ref(null)
-const imagePreviewUrl = ref('')
-
+const pricingConfig = reactive({ exchangeRate: 18, multiplier: 1, fixedMarkup: 0, roundingMode: 'none' })
 const movementsList = ref([])
-const movementsLoading = ref(false)
-
-const adjustModal = reactive({
-  open: false,
-  productId: null,
-  productName: '',
-  currentStock: 0,
-  mode: 'add',
-  quantity: 0,
-  notes: '',
+const showSingleDetails = ref(false)
+const linkSearchLoading = ref(false)
+const linkSearchMessage = ref('')
+const linkSearchError = ref('')
+const linkImportLoading = ref(false)
+const form = reactive({ product_type:'normal', sku:'', barcode:'', name:'', category:'', price:0, cost:0, stock:0, min_stock:0, image:'', game:'', card_name:'', set_name:'', set_code:'', collector_number:'', finish:'', language:'', card_condition:'', scryfall_id:'', starcity_url:'', starcity_variant_key:'', starcity_price_usd:0, starcity_last_sync:null, pricing_mode:'manual', pricing_formula_type:'', pricing_formula_value:0 })
+const adjustModal = reactive({ open:false, productId:null, productName:'', currentStock:0, mode:'add', quantity:0, notes:'' })
+const entryModal = reactive({ open:false, productId:null, productName:'', currentStock:0, quantity:0, cost:'', reference:'', notes:'' })
+const movementsModal = reactive({ open:false, productId:null, productName:'' })
+const linkModal = reactive({ open:false, productId:null, productName:'', query:'', game:'Magic: The Gathering', manualUrl:'', results:[] })
+const isSingleForm = computed(() => form.product_type === 'single')
+const filteredActiveProducts = computed(() => {
+  const term = normalizeSearchTerm(productSearch.value)
+  return (products.value || []).filter((product) => {
+    if (listFilterType.value !== 'all' && normalizedProductType(product) !== listFilterType.value) return false
+    if (!term) return true
+    return buildProductSearchText(product).includes(term)
+  })
 })
-
-const entryModal = reactive({
-  open: false,
-  productId: null,
-  productName: '',
-  currentStock: 0,
-  quantity: 0,
-  cost: '',
-  reference: '',
-  notes: '',
+const filteredInactiveProducts = computed(() => {
+  const term = normalizeSearchTerm(inactiveProductSearch.value)
+  return (inactiveProducts.value || []).filter((product) => !term || buildProductSearchText(product).includes(term))
 })
-
-const movementsModal = reactive({
-  open: false,
-  productId: null,
-  productName: '',
-})
-
-const form = reactive({
-  sku: '',
-  barcode: '',
-  name: '',
-  category: '',
-  price: 0,
-  cost: 0,
-  stock: 0,
-  min_stock: 0,
-  image: '',
-})
-
-function formatPrice(value) {
-  return Number(value || 0).toFixed(2)
+function formatPrice(v){ return Number(v||0).toFixed(2) }
+function formatDate(v){ return v ? new Date(v).toLocaleString() : '' }
+function formatReference(t,id){ return id ? `${t||'manual'} #${id}` : (t||'manual') }
+function normalizedProductType(p){ return String(p?.product_type || 'normal').toLowerCase() === 'single' ? 'single' : 'normal' }
+function isSingleProduct(p){ return normalizedProductType(p) === 'single' }
+function normalizeSearchTerm(v){ return String(v || '').trim().toLowerCase() }
+function buildProductSearchText(product){
+  return [
+    product?.name,
+    product?.sku,
+    product?.barcode,
+    product?.category,
+    product?.card_name,
+    product?.set_name,
+    product?.set_code,
+    product?.collector_number,
+    product?.game,
+  ].map((value) => String(value || '').toLowerCase()).join(' ')
 }
-
-function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
-}
-
-function formatMovementType(type) {
-  if (type === 'in') return 'Entrada'
-  if (type === 'sale') return 'Venta'
-  if (type === 'adjust') return 'Ajuste'
-  if (type === 'loss') return 'Merma'
-  if (type === 'return') return 'Devolucion'
-  return type || 'N/D'
-}
-
-function formatReference(referenceType, referenceId) {
-  const type = referenceType || 'manual'
-  return referenceId ? `${type} #${referenceId}` : type
-}
-
-function isLowStock(product) {
-  return Number(product?.stock || 0) <= Number(product?.min_stock || 0)
-}
-
-const lowStockCount = computed(() => {
-  return products.value.filter(product => isLowStock(product)).length
-})
-
-function clearMessages() {
-  message.value = ''
-  errorMessage.value = ''
-}
-
-function resetForm() {
-  editingId.value = null
-  form.sku = ''
-  form.barcode = ''
-  form.name = ''
-  form.category = ''
-  form.price = 0
-  form.cost = 0
-  form.stock = 0
-  form.min_stock = 0
-  form.image = ''
-  imagePreviewUrl.value = ''
-}
-
-function cancelEdit() {
-  resetForm()
+function clearMessages(){ message.value=''; errorMessage.value='' }
+function clearLinkSearchState(){ linkSearchLoading.value=false; linkSearchMessage.value=''; linkSearchError.value=''; linkImportLoading.value=false }
+function cancelEdit(){ editingId.value=null; showSingleDetails.value=false; Object.assign(form,{ product_type:'normal', sku:'', barcode:'', name:'', category:'', price:0, cost:0, stock:0, min_stock:0, image:'', game:'', card_name:'', set_name:'', set_code:'', collector_number:'', finish:'', language:'', card_condition:'', scryfall_id:'', starcity_url:'', starcity_variant_key:'', starcity_price_usd:0, starcity_last_sync:null, pricing_mode:'manual', pricing_formula_type:'', pricing_formula_value:0 }) }
+async function loadProducts(){ try{ const [a,b]=await Promise.all([window.posAPI.getProducts(), window.posAPI.getInactiveProducts()]); products.value=a||[]; inactiveProducts.value=b||[] }catch(e){ products.value=[]; inactiveProducts.value=[] } }
+async function loadPricingConfig(){ try{ const r=await window.posAPI.getSinglesPricingConfig(); if(r?.config) Object.assign(pricingConfig,{ exchangeRate:Number(r.config.exchangeRate||18), multiplier:Number(r.config.multiplier||1), fixedMarkup:Number(r.config.fixedMarkup||0), roundingMode:String(r.config.roundingMode||'none') }) }catch(e){} }
+async function savePricingConfig(){ try{ clearMessages(); const r=await window.posAPI.updateSinglesPricingConfig(pricingConfig); if(r?.success) message.value='Configuracion guardada.' }catch(e){ errorMessage.value=e?.message||'Error guardando config.' } }
+async function handleSelectImage(){ try{ const r=await window.posAPI.selectProductImage(); if(r?.success) form.image=r.fileName||'' }catch(e){ errorMessage.value=e?.message||'Error seleccionando imagen.' } }
+async function selectProduct(p){ editingId.value=p.id; showSingleDetails.value=String(p?.product_type||'normal').toLowerCase()==='single'; Object.assign(form,p,{ product_type:p.product_type||'normal', pricing_mode:p.pricing_mode||'manual' }) }
+function payloadFromForm(){ return { ...form, price:Number(form.price||0), cost:Number(form.cost||0), stock:Number(form.stock||0), min_stock:Number(form.min_stock||0), starcity_price_usd:Number(form.starcity_price_usd||0), pricing_formula_value:Number(form.pricing_formula_value||0) } }
+async function handleSaveProduct(){ try{ clearMessages(); let r=null; const payload=payloadFromForm(); if(editingId.value){ r=form.product_type==='single' ? await window.posAPI.updateSingle({ id:editingId.value, ...payload }) : await window.posAPI.updateProduct({ id:editingId.value, ...payload }) } else { r=form.product_type==='single' ? await window.posAPI.createSingle(payload) : await window.posAPI.createProduct(payload) } if(r?.success){ message.value='Guardado correctamente.'; cancelEdit(); await loadProducts() } }catch(e){ errorMessage.value=e?.message||'No se pudo guardar.' } }
+async function handleImportExcel(){ try{ clearMessages(); const r=await window.posAPI.importProductsFromExcel(); if(r?.success) { message.value=`Importado. Nuevos:${r.created} Actualizados:${r.updated}`; await loadProducts() } }catch(e){ errorMessage.value=e?.message||'Error importando.' } }
+async function handleExportTemplate(){ try{ clearMessages(); const r=await window.posAPI.exportProductTemplate(); if(r?.success) message.value=`Plantilla: ${r.filePath}` }catch(e){ errorMessage.value=e?.message||'Error exportando.' } }
+async function handleDeactivateProduct(p){ if(!window.confirm(`Desactivar ${p.name}?`)) return; try{ await window.posAPI.deactivateProduct(p.id); await loadProducts() }catch(e){ errorMessage.value=e?.message||'Error desactivando.' } }
+async function handleReactivateProduct(p){ if(!window.confirm(`Reactivar ${p.name}?`)) return; try{ await window.posAPI.reactivateProduct(p.id); await loadProducts() }catch(e){ errorMessage.value=e?.message||'Error reactivando.' } }
+async function handleUpdateSinglePrice(p=null){ try{ clearMessages(); const id=Number(p?.id||editingId.value||0); if(!id) throw new Error('Selecciona un single.'); const r=await window.posAPI.updateSingleStarCityPrice({ productId:id }); if(r?.success){ message.value='SCG actualizado.'; await loadProducts(); if(editingId.value===id) await selectProduct(r.product) } }catch(e){ errorMessage.value=e?.message||'Error SCG.' } }
+async function handleRecalculateSinglePrice(p=null){ try{ clearMessages(); const id=Number(p?.id||editingId.value||0); if(!id) throw new Error('Selecciona un single.'); const r=await window.posAPI.recalculateSingleSalePrice({ productId:id }); if(r?.success){ message.value=`Precio recalculado ${formatPrice(r.salePriceMxn)}`; await loadProducts(); if(editingId.value===id) await selectProduct(r.product) } }catch(e){ errorMessage.value=e?.message||'Error recalculo.' } }
+async function handleBatchUpdateSingles(){ try{ clearMessages(); const r=await window.posAPI.updateSingleStarCityPricesBatch({}); if(r?.success){ message.value=`Lote total:${r.total} ok:${r.updated} fail:${r.failed}`; await loadProducts() } }catch(e){ errorMessage.value=e?.message||'Error lote.' } }
+function openAdjustModal(p){ Object.assign(adjustModal,{ open:true, productId:Number(p.id), productName:p.name||'', currentStock:Number(p.stock||0), mode:'add', quantity:0, notes:'' }) }
+async function handleSubmitAdjust(){ try{ if(!adjustModal.notes.trim()) throw new Error('Motivo obligatorio'); const r=await window.posAPI.adjustStock({ productId:adjustModal.productId, mode:adjustModal.mode, quantity:Number(adjustModal.quantity||0), notes:adjustModal.notes }); if(r?.success){ adjustModal.open=false; await loadProducts(); message.value='Ajuste guardado.' } }catch(e){ errorMessage.value=e?.message||'Error ajuste.' } }
+function openEntryModal(p){ Object.assign(entryModal,{ open:true, productId:Number(p.id), productName:p.name||'', currentStock:Number(p.stock||0), quantity:0, cost:'', reference:'', notes:'' }) }
+async function handleSubmitEntry(){ try{ const q=Number(entryModal.quantity||0); if(q<=0) throw new Error('Cantidad mayor a 0'); const payload={ productId:entryModal.productId, quantity:q, notes:entryModal.notes, reference:entryModal.reference }; if(entryModal.cost!==''&&entryModal.cost!==null) payload.cost=Number(entryModal.cost); const r=await window.posAPI.addStockEntry(payload); if(r?.success){ entryModal.open=false; await loadProducts(); message.value='Entrada registrada.' } }catch(e){ errorMessage.value=e?.message||'Error entrada.' } }
+async function openMovementsModal(p){ movementsModal.open=true; movementsModal.productId=Number(p.id); movementsModal.productName=p.name||''; movementsList.value=await window.posAPI.getProductMovements(p.id) }
+async function openLinkModal(p=null){
   clearMessages()
-}
-
-async function loadProducts() {
-  try {
-    const data = await window.posAPI.getProducts()
-    products.value = data || []
-
-    const inactive = await window.posAPI.getInactiveProducts()
-    inactiveProducts.value = inactive || []
-  } catch (error) {
-    console.error('Error cargando productos:', error)
-    products.value = []
-    inactiveProducts.value = []
-  }
-}
-
-async function resolvePreview(fileName) {
-  if (!fileName) return ''
-
-  try {
-    const url = await window.posAPI.getProductImageUrl(fileName)
-    return url || ''
-  } catch (error) {
-    console.error('Error resolviendo preview:', error)
-    return ''
-  }
-}
-
-async function handleSelectImage() {
-  try {
-    clearMessages()
-
-    const result = await window.posAPI.selectProductImage()
-
-    if (result?.canceled) return
-
-    if (result?.success) {
-      form.image = result.fileName || ''
-      imagePreviewUrl.value = await resolvePreview(result.fileName)
-    }
-  } catch (error) {
-    console.error(error)
-    errorMessage.value = error?.message || 'No se pudo seleccionar la imagen.'
-  }
-}
-
-function handlePreviewError() {
-  imagePreviewUrl.value = ''
-}
-
-async function selectProduct(product) {
-  clearMessages()
-  editingId.value = product.id
-  form.sku = product.sku || ''
-  form.barcode = product.barcode || ''
-  form.name = product.name || ''
-  form.category = product.category || ''
-  form.price = Number(product.price || 0)
-  form.cost = Number(product.cost || 0)
-  form.stock = Number(product.stock || 0)
-  form.min_stock = Number(product.min_stock || 0)
-  form.image = product.image || ''
-  imagePreviewUrl.value = await resolvePreview(product.image)
-}
-
-async function handleSaveProduct() {
-  try {
-    clearMessages()
-
-    const payload = {
-      sku: form.sku,
-      barcode: form.barcode,
-      name: form.name,
-      category: form.category,
-      price: Number(form.price || 0),
-      cost: Number(form.cost || 0),
-      stock: Number(form.stock || 0),
-      min_stock: Number(form.min_stock || 0),
-      image: form.image,
-    }
-
-    let result
-
-    if (editingId.value) {
-      result = await window.posAPI.updateProduct({
-        id: editingId.value,
-        ...payload,
-      })
+  clearLinkSearchState()
+  if(p) await selectProduct(p)
+  if(String(form.product_type || '').toLowerCase() !== 'single'){
+    if(editingId.value){
+      errorMessage.value='Este producto esta como "normal". Cambia Tipo a "single", guarda y luego vincula SCG.'
     } else {
-      result = await window.posAPI.createProduct(payload)
+      errorMessage.value='Selecciona o crea un producto tipo single para vincular SCG.'
     }
-
-    if (result?.success) {
-      message.value = editingId.value
-        ? 'Producto actualizado correctamente.'
-        : 'Producto creado correctamente.'
-
-      resetForm()
-      await loadProducts()
-    }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo guardar el producto.'
+    return
   }
+  Object.assign(linkModal,{ open:true, productId:Number(p?.id||editingId.value||0), productName:form.name||'Single', query:form.card_name||form.name||'', game:'Magic: The Gathering', manualUrl:form.starcity_url||'', results:[] })
 }
-
-async function handleImportExcel() {
-  try {
+async function handleOpenStarCitySearch(){
+  try{
     clearMessages()
-
-    const result = await window.posAPI.importProductsFromExcel()
-
-    if (result?.canceled) return
-
-    if (result?.success) {
-      message.value = `Importacion completada. Nuevos: ${result.created}, actualizados: ${result.updated}, omitidos: ${result.skipped}.`
-      resetForm()
-      await loadProducts()
-    }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo importar el archivo.'
+    clearLinkSearchState()
+    if(!String(linkModal.query || '').trim()) throw new Error('Escribe el nombre de la carta para abrir la busqueda.')
+    await window.posAPI.openStarCitySearch({ query:linkModal.query, game:linkModal.game })
+    linkSearchMessage.value='Se abrio la busqueda en tu navegador. Copia la URL correcta de la carta y pegala abajo.'
+  }catch(e){
+    linkSearchError.value=e?.message||'No se pudo abrir el navegador.'
   }
 }
-
-async function handleExportTemplate() {
-  try {
+async function handleSearchSinglesCatalog(){
+  try{
     clearMessages()
-
-    const result = await window.posAPI.exportProductTemplate()
-
-    if (result?.canceled) return
-
-    if (result?.success) {
-      message.value = `Plantilla guardada en: ${result.filePath}`
+    clearLinkSearchState()
+    if(!String(linkModal.query || '').trim()) throw new Error('Escribe el nombre de la carta para buscar.')
+    linkSearchLoading.value=true
+    const r=await window.posAPI.searchSinglesCatalog({ query:linkModal.query, game:linkModal.game })
+    linkModal.results=r?.results||[]
+    if(linkModal.results.length){
+      linkSearchMessage.value=`Se encontraron ${linkModal.results.length} coincidencia(s).`
+    } else {
+      linkSearchMessage.value='No se encontraron coincidencias con esos filtros.'
     }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo exportar la plantilla.'
+  }catch(e){
+    linkModal.results=[]
+    linkSearchError.value=e?.message||'Error busqueda SCG.'
+  }finally{
+    linkSearchLoading.value=false
   }
 }
-
-async function handleDeactivateProduct(product) {
-  const confirmed = window.confirm(`Deseas desactivar el producto "${product.name}"?`)
-  if (!confirmed) return
-
-  try {
+async function handleImportStarCityUrl(){
+  try{
     clearMessages()
-
-    const result = await window.posAPI.deactivateProduct(product.id)
-
-    if (result?.success) {
-      message.value = 'Producto desactivado correctamente.'
-
-      if (editingId.value === product.id) {
-        resetForm()
-      }
-
+    clearLinkSearchState()
+    if(!String(linkModal.manualUrl || '').trim()) throw new Error('Pega la URL exacta de la carta en Star City.')
+    linkImportLoading.value=true
+    const r=await window.posAPI.fetchSingleStarCityPriceFromUrl({ url:linkModal.manualUrl })
+    form.starcity_url=r?.url||String(linkModal.manualUrl || '').trim()
+    form.starcity_variant_key=r?.url||String(linkModal.manualUrl || '').trim()
+    form.starcity_price_usd=Number(r?.priceUsd||0)
+    form.price=Number(r?.priceMxn||0)
+    form.starcity_last_sync=new Date().toISOString()
+    if(r?.metadata){
+      form.product_type='single'
+      form.game=r.metadata.game||form.game||'Magic: The Gathering'
+      form.category=r.metadata.category||form.category||'Singles'
+      form.name=r.metadata.name||form.name
+      form.card_name=r.metadata.cardName||form.card_name||form.name
+      form.set_name=r.metadata.setName||form.set_name
+      form.set_code=r.metadata.setCode||form.set_code
+      form.collector_number=r.metadata.collectorNumber||form.collector_number
+      form.finish=r.metadata.finish||form.finish
+      form.language=r.metadata.language||form.language
+      form.card_condition=r.metadata.cardCondition||form.card_condition
+    }
+    linkModal.manualUrl=form.starcity_url
+    if(editingId.value){
+      await window.posAPI.linkSingleStarCity({ productId:Number(editingId.value), url:form.starcity_url, variantKey:form.starcity_variant_key, priceUsd:Number(form.starcity_price_usd||0), price:Number(form.price||0) })
       await loadProducts()
+      message.value=`URL importada. Precio SCG USD ${formatPrice(form.starcity_price_usd)} / MXN ${formatPrice(form.price)}`
+    } else {
+      message.value=`URL importada. Precio SCG USD ${formatPrice(form.starcity_price_usd)} / MXN ${formatPrice(form.price)}. Guarda el producto para conservarlo.`
     }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo desactivar el producto.'
+    linkSearchMessage.value='URL validada correctamente.'
+  }catch(e){
+    linkSearchError.value=e?.message||'No se pudo importar la URL.'
+  }finally{
+    linkImportLoading.value=false
   }
 }
-
-async function handleReactivateProduct(product) {
-  const confirmed = window.confirm(`Deseas reactivar el producto "${product.name}"?`)
-  if (!confirmed) return
-
-  try {
-    clearMessages()
-
-    const result = await window.posAPI.reactivateProduct(product.id)
-
-    if (result?.success) {
-      message.value = 'Producto reactivado correctamente.'
-      await loadProducts()
-    }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo reactivar el producto.'
-  }
-}
-
-function openAdjustModal(product) {
-  clearMessages()
-  adjustModal.open = true
-  adjustModal.productId = Number(product.id)
-  adjustModal.productName = product.name || ''
-  adjustModal.currentStock = Number(product.stock || 0)
-  adjustModal.mode = 'add'
-  adjustModal.quantity = 0
-  adjustModal.notes = ''
-}
-
-function closeAdjustModal() {
-  adjustModal.open = false
-}
-
-async function handleSubmitAdjust() {
-  try {
-    clearMessages()
-
-    if (!adjustModal.notes.trim()) {
-      throw new Error('Debes capturar el motivo del ajuste.')
-    }
-
-    const quantity = Number(adjustModal.quantity || 0)
-    if (quantity < 0) {
-      throw new Error('La cantidad no puede ser menor a 0.')
-    }
-
-    const result = await window.posAPI.adjustStock({
-      productId: adjustModal.productId,
-      mode: adjustModal.mode,
-      quantity,
-      notes: adjustModal.notes,
-    })
-
-    if (result?.success) {
-      message.value = 'Ajuste de stock guardado correctamente.'
-      closeAdjustModal()
-      await loadProducts()
-    }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo ajustar el stock.'
-  }
-}
-
-function openEntryModal(product) {
-  clearMessages()
-  entryModal.open = true
-  entryModal.productId = Number(product.id)
-  entryModal.productName = product.name || ''
-  entryModal.currentStock = Number(product.stock || 0)
-  entryModal.quantity = 0
-  entryModal.cost = ''
-  entryModal.reference = ''
-  entryModal.notes = ''
-}
-
-function closeEntryModal() {
-  entryModal.open = false
-}
-
-async function handleSubmitEntry() {
-  try {
-    clearMessages()
-
-    const quantity = Number(entryModal.quantity || 0)
-    if (quantity <= 0) {
-      throw new Error('La cantidad debe ser mayor a 0.')
-    }
-
-    const payload = {
-      productId: entryModal.productId,
-      quantity,
-      notes: entryModal.notes,
-      reference: entryModal.reference,
-    }
-
-    if (entryModal.cost !== '' && entryModal.cost !== null) {
-      payload.cost = Number(entryModal.cost)
-    }
-
-    const result = await window.posAPI.addStockEntry(payload)
-
-    if (result?.success) {
-      message.value = 'Entrada de mercancia registrada correctamente.'
-      closeEntryModal()
-      await loadProducts()
-    }
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo registrar la entrada.'
-  }
-}
-
-async function openMovementsModal(product) {
-  clearMessages()
-  movementsModal.open = true
-  movementsModal.productId = Number(product.id)
-  movementsModal.productName = product.name || ''
-
-  movementsLoading.value = true
-  movementsList.value = []
-
-  try {
-    const data = await window.posAPI.getProductMovements(product.id)
-    movementsList.value = data || []
-  } catch (error) {
-    errorMessage.value = error?.message || 'No se pudieron cargar los movimientos.'
-  } finally {
-    movementsLoading.value = false
-  }
-}
-
-function closeMovementsModal() {
-  movementsModal.open = false
-  movementsList.value = []
-}
-
-onMounted(async () => {
-  await loadProducts()
-})
+async function applyLinkResult(r){ try{ form.starcity_url=r.url||''; form.starcity_variant_key=r.variantKey||''; form.starcity_price_usd=Number(r.priceUsd||0); form.starcity_last_sync=new Date().toISOString(); if(editingId.value){ await window.posAPI.linkSingleStarCity({ productId:Number(editingId.value), url:r.url, variantKey:r.variantKey, priceUsd:Number(r.priceUsd||0) }); await loadProducts(); message.value='Vinculado.' } else { message.value='Vinculo listo, guarda producto.' } linkModal.open=false }catch(e){ errorMessage.value=e?.message||'Error vinculando.' } }
+onMounted(async()=>{ await Promise.all([loadProducts(), loadPricingConfig()]) })
 </script>
 
 <style scoped>
-.products-layout {
-  min-height: 100vh;
-  background: #1e1e1e;
-  color: #f5f5f5;
-  padding: 20px;
-}
-
-.products-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.products-header h1 {
-  margin: 0;
-  color: #f2b138;
-}
-
-.products-header p {
-  margin: 6px 0 0 0;
-  color: #bcbcbc;
-}
-
-.header-actions {
-  display: flex;
-  gap: 12px;
-}
-
-.products-grid {
-  display: grid;
-  grid-template-columns: 480px 1fr;
-  gap: 20px;
-}
-
-.right-column {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.card {
-  background: #232323;
-  border: 1px solid #323232;
-  border-radius: 18px;
-  padding: 20px;
-}
-
-.form-title-row,
-.list-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 14px;
-}
-
-.full {
-  grid-column: 1 / -1;
-  margin-top: 8px;
-}
-
-.input {
-  width: 100%;
-  margin-top: 8px;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid #3a3a3a;
-  background: #2a2a2a;
-  color: white;
-}
-
-.primary-btn,
-.secondary-btn,
-.back-btn,
-.cancel-btn {
-  border: none;
-  border-radius: 12px;
-  padding: 14px 16px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn {
-  width: 100%;
-  margin-top: 18px;
-  background: #22c55e;
-  color: white;
-}
-
-.primary-btn.inline {
-  width: auto;
-  margin-top: 0;
-}
-
-.secondary-btn {
-  background: #2563eb;
-  color: white;
-}
-
-.back-btn {
-  background: #f29a2e;
-  color: #111;
-}
-
-.cancel-btn {
-  background: #525252;
-  color: white;
-  padding: 10px 12px;
-}
-
-.message {
-  margin-top: 16px;
-  padding: 12px;
-  border-radius: 10px;
-}
-
-.message.success {
-  background: #166534;
-}
-
-.message.error {
-  background: #7f1d1d;
-}
-
-.stock-alert-box {
-  margin: 16px 0;
-  background: #92400e;
-  color: white;
-  padding: 12px 14px;
-  border-radius: 12px;
-  font-weight: 700;
-}
-
-.product-list {
-  margin-top: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  max-height: calc(100vh - 220px);
-  overflow-y: auto;
-}
-
-.product-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  background: #2c2c2c;
-  border-radius: 12px;
-  padding: 12px;
-  border: 1px solid transparent;
-  cursor: pointer;
-}
-
-.product-row:hover {
-  border-color: #f2b138;
-}
-
-.product-main {
-  flex: 1;
-}
-
-.product-row p,
-.product-row small {
-  display: block;
-  margin: 4px 0 0 0;
-  color: #bcbcbc;
-}
-
-.product-meta {
-  text-align: right;
-}
-
-.inventory-actions {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
-
-.small-action-btn {
-  background: #334155;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 10px;
-  color: #f8fafc;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.small-action-btn:hover {
-  background: #475569;
-}
-
-.deactivate-btn {
-  margin-top: 8px;
-  background: #b91c1c;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: white;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.reactivate-btn {
-  margin-top: 8px;
-  background: #15803d;
-  border: none;
-  border-radius: 8px;
-  padding: 8px 10px;
-  color: white;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.inactive-card {
-  border-color: #4b5563;
-}
-
-.inactive-row {
-  opacity: 0.9;
-}
-
-.empty-state {
-  margin-top: 16px;
-  color: #bcbcbc;
-  text-align: center;
-  padding: 20px;
-}
-
-.low-stock-badge {
-  display: inline-block;
-  margin-left: 8px;
-  background: #b45309;
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 8px;
-  border-radius: 999px;
-  vertical-align: middle;
-}
-
-.low-stock-text {
-  color: #f59e0b;
-  font-weight: 700;
-}
-
-.image-picker-row {
-  display: flex;
-  gap: 10px;
-  margin-top: 8px;
-}
-
-.small-btn {
-  padding: 12px 14px;
-  white-space: nowrap;
-}
-
-.image-preview-box {
-  margin-top: 12px;
-}
-
-.image-preview {
-  width: 120px;
-  height: 120px;
-  object-fit: cover;
-  border-radius: 12px;
-  border: 1px solid #3a3a3a;
-  display: block;
-}
-
-.image-preview-empty {
-  margin-top: 12px;
-  color: #9ca3af;
-  font-size: 13px;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-  z-index: 60;
-}
-
-.modal-card {
-  width: min(760px, 100%);
-  max-height: 90vh;
-  overflow: auto;
-  background: #1f2937;
-  border: 1px solid #374151;
-  border-radius: 18px;
-  padding: 18px;
-}
-
-.modal-card.large {
-  width: min(1080px, 100%);
-}
-
-.modal-card h3 {
-  margin: 0;
-  color: #f2b138;
-}
-
-.modal-subtitle {
-  margin: 8px 0 0 0;
-  color: #d1d5db;
-}
-
-.modal-grid {
-  margin-top: 14px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.modal-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
-.table-wrap {
-  margin-top: 12px;
-  overflow: auto;
-}
-
-.report-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-
-.report-table th,
-.report-table td {
-  padding: 10px;
-  border-bottom: 1px solid #374151;
-  text-align: left;
-}
-
-@media (max-width: 1200px) {
-  .products-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 720px) {
-  .products-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
-  }
-
-  .header-actions {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .form-grid,
-  .modal-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.products-layout{min-height:100vh;background:#1e1e1e;color:#f5f5f5;padding:20px}
+.products-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap}
+.header-actions,.row-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.products-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#232323;border:1px solid #323232;border-radius:12px;padding:14px}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.full{grid-column:1/-1}
+.input{width:100%;padding:10px;border-radius:10px;border:1px solid #3a3a3a;background:#2a2a2a;color:#fff}
+.compact{width:180px}
+.list-toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.search-input{flex:1 1 260px;min-width:220px}
+.search-status{color:#d1d5db;font-size:13px}
+.primary-btn,.secondary-btn,.back-btn,.cancel-btn,.small-btn,.danger-btn{border:none;border-radius:10px;padding:10px 12px;font-weight:700;cursor:pointer}
+.primary-btn{background:#22c55e;color:#fff}.secondary-btn{background:#2563eb;color:#fff}.back-btn{background:#f29a2e;color:#111}.cancel-btn{background:#525252;color:#fff}.small-btn{background:#334155;color:#fff}.danger-btn{background:#b91c1c;color:#fff}
+.product-list{display:flex;flex-direction:column;gap:8px;max-height:42vh;overflow:auto}
+.product-row{display:flex;justify-content:space-between;gap:10px;background:#2c2c2c;padding:10px;border-radius:10px}.product-row.inactive{opacity:.8}
+.product-actions{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;padding:18px;z-index:70}
+.modal-card{width:min(780px,100%);max-height:90vh;overflow:auto;background:#1f2937;border:1px solid #374151;border-radius:12px;padding:14px}.modal-card.large{width:min(1100px,100%)}
+.modal-message{margin-top:10px}
+.report-table{width:100%;border-collapse:collapse;margin-top:10px}.report-table th,.report-table td{padding:8px;border-bottom:1px solid #374151;text-align:left}
+.message{margin-top:12px;padding:10px;border-radius:8px}.message.success{background:#166534}.message.error{background:#7f1d1d}
+.single-helper,.single-details{padding:12px;border:1px solid #374151;border-radius:10px;background:#1f2937}
+.single-helper p{margin:6px 0 0;color:#d1d5db}
+@media(max-width:1100px){.products-grid{grid-template-columns:1fr}.form-grid{grid-template-columns:1fr}}
 </style>

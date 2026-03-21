@@ -1,5 +1,17 @@
 import { defineStore } from 'pinia'
 
+function getSalePrice(product) {
+  const productType = String(product?.product_type || 'normal').toLowerCase()
+  const game = String(product?.game || '').trim().toLowerCase()
+  const usd = Number(product?.starcity_price_usd || 0)
+
+  if (productType === 'single' && game === 'magic: the gathering' && usd > 0) {
+    return Number((usd * 18).toFixed(2))
+  }
+
+  return Number(product?.price || 0)
+}
+
 export const useCartStore = defineStore('cart', {
   state: () => ({
     items: [],
@@ -45,14 +57,16 @@ export const useCartStore = defineStore('cart', {
         return { success: true }
       }
 
+      const salePrice = getSalePrice(product)
+
       this.items.push({
         id: product.id,
         sku: product.sku,
         name: product.name,
-        price: Number(product.price),
+        price: salePrice,
         stock: stock,
         qty: 1,
-        lineTotal: Number(product.price),
+        lineTotal: salePrice,
       })
 
       return { success: true }

@@ -18,6 +18,23 @@ contextBridge.exposeInMainWorld('posAPI', {
   getProductImage: (fileName) => ipcRenderer.invoke('products:getImageDataUrl', fileName),
 
   // =========================
+  // Singles
+  // =========================
+  searchSinglesCatalog: (payload) => ipcRenderer.invoke('singles:searchCatalog', payload),
+  openStarCitySearch: (payload) => ipcRenderer.invoke('singles:openStarCitySearch', payload),
+  fetchSingleStarCityPriceFromUrl: (payload) => ipcRenderer.invoke('singles:fetchPriceFromUrl', payload),
+  getSingles: (filters) => ipcRenderer.invoke('singles:list', filters),
+  getSingleById: (productId) => ipcRenderer.invoke('singles:getById', productId),
+  createSingle: (payload) => ipcRenderer.invoke('singles:create', payload),
+  updateSingle: (payload) => ipcRenderer.invoke('singles:update', payload),
+  linkSingleStarCity: (payload) => ipcRenderer.invoke('singles:linkStarCity', payload),
+  updateSingleStarCityPrice: (payload) => ipcRenderer.invoke('singles:updateStarCityPrice', payload),
+  updateSingleStarCityPricesBatch: (payload) => ipcRenderer.invoke('singles:updateStarCityPricesBatch', payload),
+  recalculateSingleSalePrice: (payload) => ipcRenderer.invoke('singles:recalculateSalePrice', payload),
+  getSinglesPricingConfig: () => ipcRenderer.invoke('singles:getPricingConfig'),
+  updateSinglesPricingConfig: (payload) => ipcRenderer.invoke('singles:updatePricingConfig', payload),
+
+  // =========================
   // Ventas
   // =========================
   createSale: (payload) => ipcRenderer.invoke('sales:create', payload),
@@ -71,6 +88,8 @@ contextBridge.exposeInMainWorld('posAPI', {
   exportCashCsv: (filters) => ipcRenderer.invoke('reports:exportCashCsv', filters),
   getSalesDashboard: (filters) => ipcRenderer.invoke('reports:salesDashboard', filters),
   getReceivablesDashboard: () => ipcRenderer.invoke('reports:receivablesDashboard'),
+  getSinglesDashboard: (filters) => ipcRenderer.invoke('reports:singlesDashboard', filters),
+  getPreordersDashboard: (filters) => ipcRenderer.invoke('reports:preordersDashboard', filters),
 
   // =========================
   // Clientes
@@ -116,9 +135,30 @@ contextBridge.exposeInMainWorld('posAPI', {
   getReceivableById: (saleId) => ipcRenderer.invoke('receivables:getById', saleId),
   getReceivablesByCustomer: (customerId) => ipcRenderer.invoke('receivables:getByCustomer', customerId),
   addReceivablePayment: (payload) => ipcRenderer.invoke('receivables:addPayment', payload),
+  addCustomerReceivablePayment: (payload) => ipcRenderer.invoke('receivables:addCustomerPayment', payload),
   getReceivablesSummary: () => ipcRenderer.invoke('receivables:getSummary'),
   getOverdueReceivables: () => ipcRenderer.invoke('receivables:getOverdue'),
   getCustomerReceivableBalance: (customerId) => ipcRenderer.invoke('receivables:getCustomerBalance', customerId),
+
+  // =========================
+  // Preventas
+  // =========================
+  getPreorders: (filters) => ipcRenderer.invoke('preorders:list', filters),
+  getPreorderById: (preorderId) => ipcRenderer.invoke('preorders:getById', preorderId),
+  createPreorder: (payload) => ipcRenderer.invoke('preorders:create', payload),
+  updatePreorder: (payload) => ipcRenderer.invoke('preorders:update', payload),
+  cancelPreorder: (payload) => ipcRenderer.invoke('preorders:cancel', payload),
+  addPreorderPayment: (payload) => ipcRenderer.invoke('preorders:addPayment', payload),
+  markPreorderFulfilled: (payload) => ipcRenderer.invoke('preorders:markFulfilled', payload),
+  reopenPreorder: (payload) => ipcRenderer.invoke('preorders:reopen', payload),
+  getPreordersByCustomer: (customerId) => ipcRenderer.invoke('preorders:getByCustomer', customerId),
+  getPreorderSummary: () => ipcRenderer.invoke('preorders:getSummary'),
+  getPendingPreorders: () => ipcRenderer.invoke('preorders:getPending'),
+  getPaidPreorders: () => ipcRenderer.invoke('preorders:getPaid'),
+  getOverduePreorders: () => ipcRenderer.invoke('preorders:getOverdue'),
+  sendPreorderCreatedEmail: (payload) => ipcRenderer.invoke('preorders:sendCreatedEmail', payload),
+  sendPreorderPaymentEmail: (payload) => ipcRenderer.invoke('preorders:sendPaymentEmail', payload),
+  sendPreorderPaidEmail: (payload) => ipcRenderer.invoke('preorders:sendPaidEmail', payload),
 
   // Aliases de compatibilidad
   listCustomers: () => ipcRenderer.invoke('customers:list'),

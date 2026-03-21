@@ -16,6 +16,7 @@
         <button class="menu-btn" @click="$router.push('/customers')">Clientes</button>
         <button class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
         <button class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
+        <button class="menu-btn" @click="$router.push('/preorders')">Preventas</button>
         <button class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
       </div>
     </aside>
@@ -85,7 +86,7 @@
                   Stock: {{ product.stock }}
                 </small>
 
-                <strong>$ {{ formatPrice(product.price) }}</strong>
+                <strong>$ {{ formatPrice(getProductSalePrice(product)) }}</strong>
               </div>
             </div>
           </div>
@@ -420,6 +421,18 @@ const lowStockCount = computed(() => {
 
 function formatPrice(value) {
   return Number(value || 0).toFixed(2)
+}
+
+function getProductSalePrice(product) {
+  const productType = String(product?.product_type || 'normal').toLowerCase()
+  const game = String(product?.game || '').trim().toLowerCase()
+  const usd = Number(product?.starcity_price_usd || 0)
+
+  if (productType === 'single' && game === 'magic: the gathering' && usd > 0) {
+    return Number((usd * 18).toFixed(2))
+  }
+
+  return Number(product?.price || 0)
 }
 
 async function checkCashStatus() {
