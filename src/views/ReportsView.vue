@@ -2,8 +2,8 @@
   <div class="reports-layout">
     <header class="reports-header">
       <div>
-        <h1>Reportes de ventas</h1>
-        <p>Resumen, transacciones, top productos y top clientes</p>
+        <h1>Reportes</h1>
+        <p>Ventas e inventario en un solo panel</p>
       </div>
 
       <button class="back-btn" @click="$router.push('/')">
@@ -23,12 +23,17 @@
           <input v-model="dateTo" type="date" class="input" />
         </div>
 
+        <div>
+          <label>Sin movimiento (dias)</label>
+          <input v-model.number="inactiveDays" type="number" min="1" class="input" />
+        </div>
+
         <div class="filter-actions">
           <button class="primary-btn" @click="loadReport">
             Consultar
           </button>
           <button class="secondary-btn" @click="handleExportCsv">
-            Exportar CSV
+            Exportar CSV ventas
           </button>
         </div>
       </div>
@@ -78,6 +83,28 @@
       <div class="summary-card">
         <span>Ticket promedio</span>
         <strong>${{ formatMoney(report.summary.averageTicket) }}</strong>
+      </div>
+    </section>
+
+    <section class="summary-grid inventory" v-if="inventoryReport?.summary">
+      <div class="summary-card inventory-card">
+        <span>Productos activos</span>
+        <strong>{{ inventoryReport.summary.totalActiveProducts }}</strong>
+      </div>
+
+      <div class="summary-card inventory-card">
+        <span>Unidades en stock</span>
+        <strong>{{ inventoryReport.summary.totalUnitsInStock }}</strong>
+      </div>
+
+      <div class="summary-card inventory-card">
+        <span>Valor estimado inventario</span>
+        <strong>${{ formatMoney(inventoryReport.summary.estimatedInventoryValue) }}</strong>
+      </div>
+
+      <div class="summary-card inventory-card">
+        <span>Productos bajo minimo</span>
+        <strong>{{ inventoryReport.summary.lowStockProductsCount }}</strong>
       </div>
     </section>
 
@@ -226,6 +253,105 @@
       </div>
     </section>
 
+    <section class="content-grid" v-if="inventoryReport">
+      <div class="card">
+        <div class="card-header">
+          <h2>Productos bajo stock minimo</h2>
+          <span>{{ inventoryReport.lowStockProducts.length }}</span>
+        </div>
+
+        <div v-if="inventoryReport.lowStockProducts.length" class="table-wrap">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>SKU</th>
+                <th>Stock</th>
+                <th>Minimo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in inventoryReport.lowStockProducts" :key="row.id">
+                <td>{{ row.name }}</td>
+                <td>{{ row.sku || 'Sin SKU' }}</td>
+                <td>{{ row.stock }}</td>
+                <td>{{ row.minStock }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state">
+          No hay productos bajo minimo.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Sin movimiento reciente</h2>
+          <span>{{ inventoryReport.staleProducts.length }}</span>
+        </div>
+
+        <div v-if="inventoryReport.staleProducts.length" class="table-wrap">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Stock</th>
+                <th>Ultimo movimiento</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in inventoryReport.staleProducts" :key="row.id">
+                <td>
+                  <div>{{ row.name }}</div>
+                  <small>{{ row.sku || 'Sin SKU' }}</small>
+                </td>
+                <td>{{ row.stock }}</td>
+                <td>{{ formatDate(row.lastMovementAt) || 'Sin movimientos' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div v-else class="empty-state">
+          Todos los productos tuvieron movimiento recientemente.
+        </div>
+      </div>
+    </section>
+
+    <section class="card" v-if="inventoryReport">
+      <div class="card-header">
+        <h2>Productos mas vendidos (inventario)</h2>
+        <span>{{ inventoryReport.topSoldProducts.length }}</span>
+      </div>
+
+      <div v-if="inventoryReport.topSoldProducts.length" class="table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>Producto</th>
+              <th>SKU</th>
+              <th>Unidades vendidas</th>
+              <th>Total ventas</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in inventoryReport.topSoldProducts" :key="row.id">
+              <td>{{ row.name }}</td>
+              <td>{{ row.sku || 'Sin SKU' }}</td>
+              <td>{{ row.totalQty }}</td>
+              <td>${{ formatMoney(row.totalSales) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else class="empty-state">
+        No hay datos de ventas para inventario.
+      </div>
+    </section>
+
     <section class="card" v-if="report">
       <div class="card-header">
         <h2>Transacciones</h2>
@@ -258,7 +384,7 @@
     </section>
 
     <div class="note-card" v-if="report">
-      La ganancia mostrada es estimada con el costo actual del producto. Para utilidad historica exacta, conviene guardar el costo por linea al momento de vender.
+      La ganancia mostrada es estimada con el costo actual. Para utilidad historica exacta, conviene guardar costo por linea en cada venta.
     </div>
 
     <div v-if="message" class="message success">
@@ -275,12 +401,14 @@
 import { onMounted, ref } from 'vue'
 
 const report = ref(null)
+const inventoryReport = ref(null)
 const message = ref('')
 const errorMessage = ref('')
 
 const today = new Date().toISOString().slice(0, 10)
 const dateFrom = ref(today)
 const dateTo = ref(today)
+const inactiveDays = ref(30)
 
 function clearMessages() {
   message.value = ''
@@ -305,10 +433,19 @@ function formatPayment(method) {
 async function loadReport() {
   try {
     clearMessages()
-    report.value = await window.posAPI.getSalesDashboard({
-      dateFrom: dateFrom.value,
-      dateTo: dateTo.value,
-    })
+
+    const [salesData, inventoryData] = await Promise.all([
+      window.posAPI.getSalesDashboard({
+        dateFrom: dateFrom.value,
+        dateTo: dateTo.value,
+      }),
+      window.posAPI.getInventorySummary({
+        inactiveDays: Number(inactiveDays.value || 30),
+      }),
+    ])
+
+    report.value = salesData
+    inventoryReport.value = inventoryData
   } catch (error) {
     console.error(error)
     errorMessage.value = error?.message || 'No se pudo cargar el reporte.'
@@ -395,7 +532,7 @@ onMounted(async () => {
 
 .filters-grid {
   display: grid;
-  grid-template-columns: 220px 220px 1fr;
+  grid-template-columns: 220px 220px 220px 1fr;
   gap: 16px;
   align-items: end;
 }
@@ -436,9 +573,13 @@ onMounted(async () => {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 16px;
   margin-bottom: 20px;
+}
+
+.summary-grid.inventory {
+  grid-template-columns: repeat(4, 1fr);
 }
 
 .summary-card {
@@ -457,6 +598,10 @@ onMounted(async () => {
 .summary-card strong {
   font-size: 22px;
   color: #f2b138;
+}
+
+.inventory-card strong {
+  color: #22c55e;
 }
 
 .content-grid {
@@ -547,5 +692,34 @@ onMounted(async () => {
 
 .message.error {
   background: #7f1d1d;
+}
+
+@media (max-width: 1400px) {
+  .summary-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .summary-grid.inventory {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .filters-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .reports-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .content-grid,
+  .summary-grid,
+  .summary-grid.inventory,
+  .filters-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

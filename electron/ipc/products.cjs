@@ -125,7 +125,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
     const db = getDb()
 
     return db.prepare(`
-      SELECT id, sku, barcode, name, category, price, cost, stock, image, active
+      SELECT id, sku, barcode, name, category, price, cost, stock, COALESCE(min_stock, 0) as min_stock, image, active
       FROM products
       WHERE active = 0
       ORDER BY name ASC
@@ -173,7 +173,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
     if (!cleanCode) return null
 
     const product = db.prepare(`
-      SELECT id, sku, barcode, name, category, price, cost, stock, image, active
+      SELECT id, sku, barcode, name, category, price, cost, stock, COALESCE(min_stock, 0) as min_stock, image, active
       FROM products
       WHERE active = 1
         AND (barcode = ? OR sku = ?)
@@ -187,7 +187,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
     const db = getDb()
 
     return db.prepare(`
-      SELECT id, sku, barcode, name, category, price, cost, stock, image, active
+      SELECT id, sku, barcode, name, category, price, cost, stock, COALESCE(min_stock, 0) as min_stock, image, active
       FROM products
       WHERE active = 1
       ORDER BY name ASC
@@ -205,6 +205,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
       price: normalizeNumber(payload?.price),
       cost: normalizeNumber(payload?.cost),
       stock: normalizeNumber(payload?.stock),
+      min_stock: normalizeNumber(payload?.min_stock),
       image: normalizeText(payload?.image),
     }
 
@@ -216,6 +217,14 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
       throw new Error('Debes capturar al menos SKU o código de barras.')
     }
 
+    if (product.stock < 0) {
+      throw new Error('El stock no puede ser menor a 0.')
+    }
+
+    if (product.min_stock < 0) {
+      throw new Error('El stock minimo no puede ser menor a 0.')
+    }
+
     const existing = findExistingProduct(db, product)
 
     if (existing) {
@@ -224,8 +233,8 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
 
     const result = db.prepare(`
       INSERT INTO products (
-        sku, barcode, name, category, price, cost, stock, image, active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+        sku, barcode, name, category, price, cost, stock, min_stock, image, active
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     `).run(
       product.sku,
       product.barcode,
@@ -234,6 +243,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
       product.price,
       product.cost,
       product.stock,
+      product.min_stock,
       product.image
     )
 
@@ -260,6 +270,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
       price: normalizeNumber(payload?.price),
       cost: normalizeNumber(payload?.cost),
       stock: normalizeNumber(payload?.stock),
+      min_stock: normalizeNumber(payload?.min_stock),
       image: normalizeText(payload?.image),
     }
 
@@ -271,36 +282,86 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
       throw new Error('Debes capturar al menos SKU o código de barras.')
     }
 
+    if (product.stock < 0) {
+      throw new Error('El stock no puede ser menor a 0.')
+    }
+
+    if (product.min_stock < 0) {
+      throw new Error('El stock minimo no puede ser menor a 0.')
+    }
+
     const existing = findExistingProduct(db, product, productId)
 
     if (existing) {
       throw new Error('Otro producto ya usa ese SKU o código de barras.')
     }
 
-    db.prepare(`
-      UPDATE products
-      SET
-        sku = ?,
-        barcode = ?,
-        name = ?,
-        category = ?,
-        price = ?,
-        cost = ?,
-        stock = ?,
-        image = ?,
-        updated_at = CURRENT_TIMESTAMP
+    const current = db.prepare(`
+      SELECT id, stock
+      FROM products
       WHERE id = ?
-    `).run(
-      product.sku,
-      product.barcode,
-      product.name,
-      product.category,
-      product.price,
-      product.cost,
-      product.stock,
-      product.image,
-      productId
-    )
+      LIMIT 1
+    `).get(productId)
+
+    if (!current) {
+      throw new Error('Producto no encontrado.')
+    }
+
+    const transaction = db.transaction(() => {
+      db.prepare(`
+        UPDATE products
+        SET
+          sku = ?,
+          barcode = ?,
+          name = ?,
+          category = ?,
+          price = ?,
+          cost = ?,
+          stock = ?,
+          min_stock = ?,
+          image = ?,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+      `).run(
+        product.sku,
+        product.barcode,
+        product.name,
+        product.category,
+        product.price,
+        product.cost,
+        product.stock,
+        product.min_stock,
+        product.image,
+        productId
+      )
+
+      const stockBefore = Number(current.stock || 0)
+      const stockAfter = Number(product.stock || 0)
+      const quantityDiff = Math.abs(stockAfter - stockBefore)
+
+      if (quantityDiff > 0) {
+        db.prepare(`
+          INSERT INTO inventory_movements (
+            product_id,
+            type,
+            quantity,
+            stock_before,
+            stock_after,
+            reference_type,
+            reference_id,
+            notes
+          ) VALUES (?, 'adjust', ?, ?, ?, 'manual', NULL, ?)
+        `).run(
+          productId,
+          quantityDiff,
+          stockBefore,
+          stockAfter,
+          'Ajuste desde edicion de producto'
+        )
+      }
+    })
+
+    transaction()
 
     return {
       success: true,
@@ -342,6 +403,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
           price: normalizeNumber(row.price || row.precio),
           cost: normalizeNumber(row.cost || row.costo),
           stock: normalizeNumber(row.stock || row.existencia),
+          min_stock: normalizeNumber(row.min_stock || row.stock_minimo || row.minimo || row.minStock),
           image: normalizeText(row.image || row.imagen),
         }
 
@@ -363,6 +425,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
               price = ?,
               cost = ?,
               stock = ?,
+              min_stock = ?,
               image = ?,
               active = 1,
               updated_at = CURRENT_TIMESTAMP
@@ -375,6 +438,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
             product.price,
             product.cost,
             product.stock,
+            product.min_stock,
             product.image,
             existing.id
           )
@@ -382,8 +446,8 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
         } else {
           db.prepare(`
             INSERT INTO products (
-              sku, barcode, name, category, price, cost, stock, image, active
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+              sku, barcode, name, category, price, cost, stock, min_stock, image, active
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
           `).run(
             product.sku,
             product.barcode,
@@ -392,6 +456,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
             product.price,
             product.cost,
             product.stock,
+            product.min_stock,
             product.image
           )
           created += 1
@@ -421,6 +486,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
         price: 129,
         cost: 90,
         stock: 24,
+        min_stock: 4,
         image: '',
       },
       {
@@ -431,6 +497,7 @@ ipcMain.handle('products:getImageDataUrl', (event, imageValue) => {
         price: 139,
         cost: 105,
         stock: 18,
+        min_stock: 4,
         image: '',
       },
     ]

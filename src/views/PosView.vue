@@ -15,6 +15,7 @@
         <button class="menu-btn" @click="$router.push('/reports')">Reportes</button>
         <button class="menu-btn" @click="$router.push('/customers')">Clientes</button>
         <button class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
+        <button class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
       </div>
     </aside>
 

@@ -12,7 +12,8 @@ const { pathToFileURL } = require('url')
 const { registerBackupHandlers } = require('./ipc/backup.cjs')
 const { registerReportHandlers } = require('./ipc/reports.cjs')
 const {registerCustomerHandlers} = require('./ipc/customers.cjs')
-const { register } = require('module')
+const { registerTournamentHandlers } = require('./ipc/tournaments.cjs')
+const { registerInventoryHandlers } = require('./ipc/inventory.cjs')
 
 
 const isDev = !app.isPackaged
@@ -54,13 +55,15 @@ app.whenReady().then(() => {
   initializeDatabase()
   registerProductHandlers()
   registerSalesHandlers()
-  registerLocalFileProtocol
+  registerLocalFileProtocol()
   registerHistoryHandlers()
   registerPrintHandlers()
   registerCashHandlers()
   registerBackupHandlers()
   registerReportHandlers()
   registerCustomerHandlers()
+  registerTournamentHandlers()
+  registerInventoryHandlers()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

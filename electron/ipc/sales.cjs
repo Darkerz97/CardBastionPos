@@ -86,10 +86,23 @@ function registerSalesHandlers() {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
-    const updateStock = db.prepare(`
+    const updateStockWithValue = db.prepare(`
       UPDATE products
-      SET stock = stock - ?
+      SET stock = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
+    `)
+
+    const insertInventoryMovement = db.prepare(`
+      INSERT INTO inventory_movements (
+        product_id,
+        type,
+        quantity,
+        stock_before,
+        stock_after,
+        reference_type,
+        reference_id,
+        notes
+      ) VALUES (?, 'sale', ?, ?, ?, 'sale', ?, ?)
     `)
 
     const getCustomerCredit = db.prepare(`
@@ -139,6 +152,10 @@ function registerSalesHandlers() {
         const productId = Number(item.id || 0)
         const qty = Number(item.qty || 0)
 
+        if (!productId || qty <= 0) {
+          throw new Error('La venta contiene un item invalido.')
+        }
+
         const currentProduct = db.prepare(`
           SELECT id, name, stock, cost
           FROM products
@@ -156,6 +173,9 @@ function registerSalesHandlers() {
           )
         }
 
+        const stockBefore = Number(currentProduct.stock || 0)
+        const stockAfter = stockBefore - qty
+
         insertSaleItem.run(
           saleId,
           productId,
@@ -167,7 +187,16 @@ function registerSalesHandlers() {
           Number(item.lineTotal || 0)
         )
 
-        updateStock.run(qty, productId)
+        updateStockWithValue.run(stockAfter, productId)
+
+        insertInventoryMovement.run(
+          productId,
+          qty,
+          stockBefore,
+          stockAfter,
+          saleId,
+          `Venta ${folio}`
+        )
       }
 
       if (creditToUse > 0) {

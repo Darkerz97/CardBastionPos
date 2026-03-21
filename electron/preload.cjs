@@ -84,6 +84,30 @@ contextBridge.exposeInMainWorld('posAPI', {
   useCustomerCredit: (payload) => ipcRenderer.invoke('customers:useCredit', payload),
   getCustomerById: (id) => ipcRenderer.invoke('customers:getById', id),
 
+  // =========================
+  // Torneos
+  // =========================
+  getTournaments: () => ipcRenderer.invoke('tournaments:list'),
+  createTournament: (payload) => ipcRenderer.invoke('tournaments:create', payload),
+  getTournamentDetail: (tournamentId) => ipcRenderer.invoke('tournaments:getDetail', tournamentId),
+  updateTournament: (payload) => ipcRenderer.invoke('tournaments:update', payload),
+  addTournamentPlayer: (payload) => ipcRenderer.invoke('tournaments:addPlayer', payload),
+  removeTournamentPlayer: (payload) => ipcRenderer.invoke('tournaments:removePlayer', payload),
+  setTournamentPlayerPlace: (payload) => ipcRenderer.invoke('tournaments:setPlayerPlace', payload),
+  createTournamentRoundTables: (payload) => ipcRenderer.invoke('tournaments:createRoundTables', payload),
+  saveTournamentTableResult: (payload) => ipcRenderer.invoke('tournaments:saveTableResult', payload),
+  finalizeTournament: (payload) => ipcRenderer.invoke('tournaments:finalize', payload),
+  getTournamentLeaderboard: (season) => ipcRenderer.invoke('tournaments:getLeaderboard', season),
+
+  // =========================
+  // Inventario
+  // =========================
+  getProductMovements: (productId) => ipcRenderer.invoke('inventory:getProductMovements', productId),
+  adjustStock: (payload) => ipcRenderer.invoke('inventory:adjustStock', payload),
+  addStockEntry: (payload) => ipcRenderer.invoke('inventory:addStockEntry', payload),
+  getLowStockProducts: () => ipcRenderer.invoke('inventory:getLowStockProducts'),
+  getInventorySummary: (payload) => ipcRenderer.invoke('inventory:getInventorySummary', payload),
+
   // Aliases de compatibilidad
   listCustomers: () => ipcRenderer.invoke('customers:list'),
   list: () => ipcRenderer.invoke('customers:list'),
