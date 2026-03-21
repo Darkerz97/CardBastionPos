@@ -79,6 +79,16 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 - getLowStockProducts
 - getInventorySummary
 
+## Cuentas Por Cobrar / Fiado
+- getReceivables
+- getReceivableById
+- getReceivablesByCustomer
+- addReceivablePayment
+- getReceivablesSummary
+- getOverdueReceivables
+- getCustomerReceivableBalance
+- getReceivablesDashboard
+
 ## Aliases de Compatibilidad
 - listCustomers
 - list
@@ -133,3 +143,26 @@ Si se agregan nuevas funciones en `electron/preload.cjs`, este archivo debe actu
   - pareos/mesas por ronda,
   - captura de resultados y ganador por mesa,
   - finalización de torneo y leaderboard por temporada.
+
+### Cuentas por cobrar / fiado / abonos (2026-03-21)
+- Se agregaron campos de cobranza en `sales`:
+  - `payment_status`
+  - `amount_paid`
+  - `amount_due`
+  - `due_date`
+  - `payment_notes`
+- Se creó `sale_payments` para registrar pagos iniciales y abonos posteriores.
+- `sales:create` ahora soporta venta pagada, parcial y pendiente.
+- Se agregó módulo IPC `receivables` para:
+  - listar cuentas por cobrar,
+  - consultar detalle por venta/cliente,
+  - registrar abonos,
+  - obtener resumen, vencidas y balance por cliente.
+- Se integró vista `ReceivablesView.vue` y ruta `/receivables`.
+- Se actualizó caja para contemplar abonos y evitar doble conteo:
+  - ventas consideran pago inicial,
+  - abonos posteriores se contabilizan por separado.
+- Se ajustó modal de cobro del POS para mejor UX:
+  - distribución en 2 columnas,
+  - captura de pago inicial,
+  - cálculo de saldo pendiente y estado.
