@@ -1,0 +1,103 @@
+import { defineStore } from 'pinia'
+
+export const useCartStore = defineStore('cart', {
+  state: () => ({
+    items: [],
+  }),
+
+  getters: {
+    subtotal(state) {
+      return state.items.reduce((sum, item) => sum + item.lineTotal, 0)
+    },
+
+    total(state) {
+      return state.items.reduce((sum, item) => sum + item.lineTotal, 0)
+    },
+
+    totalItems(state) {
+      return state.items.reduce((sum, item) => sum + item.qty, 0)
+    },
+  },
+
+  actions: {
+    addProduct(product) {
+      const stock = Number(product.stock || 0)
+      const existing = this.items.find((item) => item.id === product.id)
+
+      if (stock <= 0) {
+        return {
+          success: false,
+          message: 'Este producto no tiene stock disponible.',
+        }
+      }
+
+      if (existing) {
+        if (existing.qty >= stock) {
+          return {
+            success: false,
+            message: `Solo hay ${stock} pieza(s) disponibles de ${product.name}.`,
+          }
+        }
+
+        existing.qty += 1
+        existing.lineTotal = existing.qty * existing.price
+
+        return { success: true }
+      }
+
+      this.items.push({
+        id: product.id,
+        sku: product.sku,
+        name: product.name,
+        price: Number(product.price),
+        stock: stock,
+        qty: 1,
+        lineTotal: Number(product.price),
+      })
+
+      return { success: true }
+    },
+
+    increaseQty(productId) {
+      const item = this.items.find((i) => i.id === productId)
+      if (!item) {
+        return { success: false, message: 'Producto no encontrado en carrito.' }
+      }
+
+      const stock = Number(item.stock || 0)
+
+      if (item.qty >= stock) {
+        return {
+          success: false,
+          message: `Solo hay ${stock} pieza(s) disponibles de ${item.name}.`,
+        }
+      }
+
+      item.qty += 1
+      item.lineTotal = item.qty * item.price
+
+      return { success: true }
+    },
+
+    decreaseQty(productId) {
+      const item = this.items.find((i) => i.id === productId)
+      if (!item) return
+
+      item.qty -= 1
+
+      if (item.qty <= 0) {
+        this.items = this.items.filter((i) => i.id !== productId)
+      } else {
+        item.lineTotal = item.qty * item.price
+      }
+    },
+
+    removeItem(productId) {
+      this.items = this.items.filter((i) => i.id !== productId)
+    },
+
+    clearCart() {
+      this.items = []
+    },
+  },
+})
