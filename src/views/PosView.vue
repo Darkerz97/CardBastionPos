@@ -227,6 +227,14 @@
           >
             Tarjeta
           </button>
+
+          <button
+            class="payment-method-btn"
+            :class="{ active: paymentMethod === 'transfer' }"
+            @click="paymentMethod = 'transfer'"
+          >
+            Transferencia
+          </button>
         </div>
 
         <div class="payment-summary">
@@ -268,15 +276,15 @@
           </div>
 
           <div class="credit-box">
-            <label>Monto pagado inicial</label>
+            <label>Monto pagado</label>
             <input
-              v-model.number="amountPaidInitial"
+              v-model.number="paymentAmount"
               type="number"
               min="0"
               step="0.01"
               class="payment-input"
               placeholder="0.00"
-              @input="validateInitialPayment"
+              @input="validatePaymentAmount"
             />
 
             <div class="summary-row" style="margin-top: 12px;">
@@ -309,34 +317,10 @@
             </div>
           </div>
 
-          <div v-if="paymentMethod === 'cash'" class="cash-section">
-            <label>Monto recibido en efectivo</label>
-            <input
-              v-model.number="cashReceived"
-              type="number"
-              min="0"
-              step="0.01"
-              class="payment-input"
-              placeholder="0.00"
-            />
-
-            <div class="quick-cash-buttons">
-              <button class="quick-cash-btn" @click="setExactAmount">Igual al pago</button>
-              <button class="quick-cash-btn" @click="setCashAmount(20)">20</button>
-              <button class="quick-cash-btn" @click="setCashAmount(50)">50</button>
-              <button class="quick-cash-btn" @click="setCashAmount(100)">100</button>
-              <button class="quick-cash-btn" @click="setCashAmount(200)">200</button>
-              <button class="quick-cash-btn" @click="setCashAmount(500)">500</button>
-            </div>
-
-            <div class="summary-row total-change">
-              <span>Cambio</span>
-              <strong>$ {{ formatPrice(changeGiven) }}</strong>
-            </div>
-          </div>
-
-          <div v-else class="card-section">
-            <p>Pago con tarjeta seleccionado.</p>
+          <div class="card-section">
+            <p v-if="paymentMethod === 'cash'">Pago en efectivo seleccionado.</p>
+            <p v-else-if="paymentMethod === 'card'">Pago con tarjeta seleccionado.</p>
+            <p v-else>Pago por transferencia seleccionado.</p>
           </div>
         </div>
 
@@ -357,7 +341,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useCartStore } from '../stores/cartStore'
 
 const products = ref([])
@@ -368,7 +352,6 @@ const cart = useCartStore()
 const hasOpenCash = ref(false)
 const showPaymentModal = ref(false)
 const paymentMethod = ref('cash')
-const cashReceived = ref(0)
 const savingSale = ref(false)
 const saleError = ref('')
 const saleSuccess = ref('')
@@ -382,7 +365,7 @@ const customerSearch = ref('')
 const customerResults = ref([])
 
 const creditToUse = ref(0)
-const amountPaidInitial = ref(0)
+const paymentAmount = ref(0)
 const dueDate = ref('')
 const paymentNotes = ref('')
 
@@ -433,14 +416,6 @@ function handleProductImageError(productId) {
 
 const lowStockCount = computed(() => {
   return products.value.filter(product => Number(product.stock || 0) <= 3).length
-})
-
-watch(paymentMethod, (newValue) => {
-  if (newValue === 'cash') {
-    if (Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)) {
-      cashReceived.value = Number(amountPaidInitial.value || 0)
-    }
-  }
 })
 
 function formatPrice(value) {
@@ -523,8 +498,7 @@ async function openPaymentModal() {
   }
 
   paymentMethod.value = 'cash'
-  amountPaidInitial.value = Number(cart.total || 0)
-  cashReceived.value = Number(cart.total || 0)
+  paymentAmount.value = Number(cart.total || 0)
   dueDate.value = ''
   paymentNotes.value = ''
   saleError.value = ''
@@ -534,21 +508,13 @@ async function openPaymentModal() {
 function closePaymentModal() {
   showPaymentModal.value = false
   saleError.value = ''
-  amountPaidInitial.value = 0
+  paymentAmount.value = 0
   dueDate.value = ''
   paymentNotes.value = ''
 
   nextTick(() => {
     searchInputRef.value?.focus()
   })
-}
-
-function setExactAmount() {
-  cashReceived.value = Number(amountPaidInitial.value || 0)
-}
-
-function setCashAmount(amount) {
-  cashReceived.value = Number(amount || 0)
 }
 
 function validateCredit() {
@@ -572,7 +538,7 @@ function validateCredit() {
     creditToUse.value = total
   }
 
-  validateInitialPayment()
+  validatePaymentAmount()
 }
 
 function applyMaxCredit() {
@@ -585,22 +551,18 @@ function applyMaxCredit() {
   const total = Number(cart.total || 0)
   creditToUse.value = Math.min(available, total)
 
-  validateInitialPayment()
+  validatePaymentAmount()
 }
 
-function validateInitialPayment() {
+function validatePaymentAmount() {
   const remaining = Number(remainingAfterCredit.value || 0)
 
-  if (Number(amountPaidInitial.value || 0) < 0) {
-    amountPaidInitial.value = 0
+  if (Number(paymentAmount.value || 0) < 0) {
+    paymentAmount.value = 0
   }
 
-  if (Number(amountPaidInitial.value || 0) > remaining) {
-    amountPaidInitial.value = remaining
-  }
-
-  if (paymentMethod.value === 'cash' && Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)) {
-    cashReceived.value = Number(amountPaidInitial.value || 0)
+  if (Number(paymentAmount.value || 0) > remaining) {
+    paymentAmount.value = remaining
   }
 }
 
@@ -611,12 +573,12 @@ const remainingAfterCredit = computed(() => {
 })
 
 const pendingAmount = computed(() => {
-  return Math.max(Number(remainingAfterCredit.value || 0) - Number(amountPaidInitial.value || 0), 0)
+  return Math.max(Number(remainingAfterCredit.value || 0) - Number(paymentAmount.value || 0), 0)
 })
 
 const paymentStatusPreview = computed(() => {
   if (Number(pendingAmount.value || 0) <= 0) return 'paid'
-  if (Number(amountPaidInitial.value || 0) <= 0) return 'pending'
+  if (Number(paymentAmount.value || 0) <= 0) return 'pending'
   return 'partial'
 })
 
@@ -624,11 +586,6 @@ const paymentStatusLabel = computed(() => {
   if (paymentStatusPreview.value === 'paid') return 'Pagado'
   if (paymentStatusPreview.value === 'partial') return 'Parcial'
   return 'Pendiente'
-})
-
-const changeGiven = computed(() => {
-  if (paymentMethod.value !== 'cash') return 0
-  return Math.max(Number(cashReceived.value || 0) - Number(amountPaidInitial.value || 0), 0)
 })
 
 const filteredProducts = computed(() => {
@@ -659,7 +616,7 @@ async function loadProducts() {
 
 async function confirmSale() {
   validateCredit()
-  validateInitialPayment()
+  validatePaymentAmount()
   saleError.value = ''
 
   if (!cart.items.length) {
@@ -684,22 +641,13 @@ async function confirmSale() {
     }
   }
 
-  if (Number(amountPaidInitial.value || 0) > Number(remainingAfterCredit.value || 0)) {
-    saleError.value = 'El monto pagado inicial no puede exceder el total neto.'
+  if (Number(paymentAmount.value || 0) > Number(remainingAfterCredit.value || 0)) {
+    saleError.value = 'El monto pagado no puede exceder el total neto.'
     return
   }
 
   if (Number(pendingAmount.value || 0) > 0 && !selectedCustomer.value) {
-    saleError.value = 'Para ventas parciales o pendientes debes seleccionar un cliente.'
-    return
-  }
-
-  if (
-    paymentMethod.value === 'cash' &&
-    Number(amountPaidInitial.value || 0) > 0 &&
-    Number(cashReceived.value || 0) < Number(amountPaidInitial.value || 0)
-  ) {
-    saleError.value = 'El monto recibido en efectivo es menor al pago inicial.'
+    saleError.value = 'Si el pago es menor al total, debes seleccionar cliente para enviarlo a cuenta por cobrar.'
     return
   }
 
@@ -719,11 +667,11 @@ async function confirmSale() {
       discount: 0,
       total: Number(remainingAfterCredit.value || 0),
       payment_method: paymentMethod.value,
-      cash_received: paymentMethod.value === 'cash' ? Number(cashReceived.value || 0) : 0,
-      change_given: paymentMethod.value === 'cash' ? Number(changeGiven.value || 0) : 0,
+      cash_received: paymentMethod.value === 'cash' ? Number(paymentAmount.value || 0) : 0,
+      change_given: 0,
       customerId: selectedCustomer.value?.id || null,
       credit_used: Number(creditToUse.value || 0),
-      amount_paid: Number(amountPaidInitial.value || 0),
+      amount_paid: Number(paymentAmount.value || 0),
       due_date: dueDate.value || null,
       payment_notes: String(paymentNotes.value || ''),
     }
@@ -739,10 +687,9 @@ async function confirmSale() {
     clearCustomer()
     search.value = ''
     creditToUse.value = 0
-    amountPaidInitial.value = 0
+    paymentAmount.value = 0
     dueDate.value = ''
     paymentNotes.value = ''
-    cashReceived.value = 0
 
     closePaymentModal()
     await loadProducts()
