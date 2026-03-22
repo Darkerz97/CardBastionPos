@@ -1,8 +1,19 @@
-# Repositorio de Funciones
+﻿# Repositorio de Funciones
 
-Fecha de corte: 2026-03-21
+Fecha de corte: 2026-03-22
 
 Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `electron/preload.cjs`).
+
+## Sesion / Usuarios
+- listLoginUsers
+- login
+- logout
+- getCurrentSession
+- getUsers
+- createUser
+- updateUser
+- getWindowDefinitions
+- getAuditLogs
 
 ## Productos
 - getProducts
@@ -12,22 +23,44 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 - updateProduct
 - deactivateProduct
 - reactivateProduct
+- deleteProduct
+- getProductCatalogOptions
 - importProductsFromExcel
 - exportProductTemplate
 - selectProductImage
 - getProductImageUrl
 - getProductImage
 
+## Singles
+- searchSinglesCatalog
+- openStarCitySearch
+- fetchSingleStarCityPriceFromUrl
+- getSingles
+- getSingleById
+- createSingle
+- updateSingle
+- linkSingleStarCity
+- updateSingleStarCityPrice
+- updateSingleStarCityPricesBatch
+- recalculateSingleSalePrice
+- getSinglesPricingConfig
+- updateSinglesPricingConfig
+
 ## Ventas
 - createSale
 - getTodaySales
 - getSaleDetail
+- updateSale
+- deleteSale
 
 ## Caja
 - getOpenCashSession
 - openCashSession
 - getCurrentCashSummary
 - closeCashSession
+- getCashSessions
+- updateCashSession
+- deleteCashSession
 - getCashStatus
 
 ## Tickets / Ajustes
@@ -47,6 +80,9 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 - exportSalesCsv
 - exportCashCsv
 - getSalesDashboard
+- getReceivablesDashboard
+- getSinglesDashboard
+- getPreordersDashboard
 
 ## Clientes
 - getCustomers
@@ -79,15 +115,33 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 - getLowStockProducts
 - getInventorySummary
 
-## Cuentas Por Cobrar / Fiado
+## Cuentas por Cobrar / Fiado
 - getReceivables
 - getReceivableById
 - getReceivablesByCustomer
 - addReceivablePayment
+- addCustomerReceivablePayment
 - getReceivablesSummary
 - getOverdueReceivables
 - getCustomerReceivableBalance
-- getReceivablesDashboard
+
+## Preventas
+- getPreorders
+- getPreorderById
+- createPreorder
+- updatePreorder
+- cancelPreorder
+- addPreorderPayment
+- markPreorderFulfilled
+- reopenPreorder
+- getPreordersByCustomer
+- getPreorderSummary
+- getPendingPreorders
+- getPaidPreorders
+- getOverduePreorders
+- sendPreorderCreatedEmail
+- sendPreorderPaymentEmail
+- sendPreorderPaidEmail
 
 ## Aliases de Compatibilidad
 - listCustomers
@@ -106,63 +160,59 @@ Si se agregan nuevas funciones en `electron/preload.cjs`, este archivo debe actu
 
 ---
 
-## Cambios Implementados (2026-03-21)
+## Cambios Implementados (2026-03-22)
 
-### Inventario profesional integrado
-- Se agregó tabla `inventory_movements` con trazabilidad de entradas, ventas, ajustes y mermas.
-- Se agregaron columnas/migraciones seguras para productos: `min_stock`, `cost`, `updated_at`.
-- Se creó módulo IPC de inventario (`electron/ipc/inventory.cjs`) con:
-  - consulta de movimientos por producto,
-  - ajuste manual de stock (sumar/restar/fijar),
-  - entradas de mercancía,
-  - consulta de bajo stock,
-  - resumen de inventario.
+### Usuarios, permisos y sesión
+- Se agregó autenticación local por usuario con NIP.
+- Se creó la tabla `users` y la tabla `user_window_permissions`.
+- Se agregó una sesión activa en memoria para validar acceso en IPC y frontend.
+- Se creó un usuario inicial `admin` con NIP `1234`.
 
-### Integración con ventas
-- `sales:create` ahora descuenta inventario y registra movimientos `type='sale'` por cada item.
-- Se mantiene transacción para evitar ventas parciales si falla inventario.
-- Se conserva validación de no permitir stock negativo.
+### Administración de permisos por ventana
+- Se añadió un panel `Usuarios y permisos` para crear, editar y desactivar usuarios.
+- Cada usuario puede tener acceso específico por ventana:
+  - POS
+  - historial
+  - caja
+  - productos
+  - respaldo
+  - reportes
+  - clientes
+  - historial por cliente
+  - cuentas por cobrar
+  - preventas
+  - torneos
+  - usuarios
 
-### Productos e inventario (UI)
-- `ProductsView.vue` se amplió con:
-  - visualización de stock mínimo,
-  - alerta por stock bajo (`stock <= min_stock`),
-  - modal de ajuste manual,
-  - modal de entrada de mercancía,
-  - modal de historial de movimientos.
+### Bitácora firmada por usuario
+- Se agregó la tabla `audit_logs`.
+- Se registran movimientos clave con firma del usuario autenticado:
+  - creación y actualización de usuarios
+  - apertura y cierre de caja
+  - edición y eliminación de cierres
+  - creación, edición, desactivación, reactivación y eliminación de productos
+  - creación, edición y eliminación de ventas
 
-### Reportes
-- `ReportsView.vue` ahora incluye reportes de inventario:
-  - productos bajo mínimo,
-  - productos sin movimiento reciente,
-  - productos más vendidos,
-  - valor estimado del inventario.
+### Ventas editables y eliminables
+- Se implementó un servicio central para recrear correctamente una venta al editarla.
+- Al editar o eliminar una venta:
+  - se revierte inventario,
+  - se revierte crédito usado,
+  - se preserva trazabilidad en bitácora.
+- Se bloquea edición o eliminación si la venta ya tiene abonos posteriores para no romper cuentas por cobrar.
 
-### Torneos
-- Se integraron handlers y vista de torneos con soporte para:
-  - pareos/mesas por ronda,
-  - captura de resultados y ganador por mesa,
-  - finalización de torneo y leaderboard por temporada.
+### Caja editable y eliminable
+- Los cierres de caja ahora pueden consultarse en lista.
+- Los cierres cerrados pueden editarse o eliminarse desde la interfaz.
+- Cada operación queda auditada con usuario.
 
-### Cuentas por cobrar / fiado / abonos (2026-03-21)
-- Se agregaron campos de cobranza en `sales`:
-  - `payment_status`
-  - `amount_paid`
-  - `amount_due`
-  - `due_date`
-  - `payment_notes`
-- Se creó `sale_payments` para registrar pagos iniciales y abonos posteriores.
-- `sales:create` ahora soporta venta pagada, parcial y pendiente.
-- Se agregó módulo IPC `receivables` para:
-  - listar cuentas por cobrar,
-  - consultar detalle por venta/cliente,
-  - registrar abonos,
-  - obtener resumen, vencidas y balance por cliente.
-- Se integró vista `ReceivablesView.vue` y ruta `/receivables`.
-- Se actualizó caja para contemplar abonos y evitar doble conteo:
-  - ventas consideran pago inicial,
-  - abonos posteriores se contabilizan por separado.
-- Se ajustó modal de cobro del POS para mejor UX:
-  - distribución en 2 columnas,
-  - captura de pago inicial,
-  - cálculo de saldo pendiente y estado.
+### Productos
+- Se agregó eliminación física segura solo para productos sin historial relacionado.
+- Si un producto ya tiene referencias, el sistema obliga a desactivarlo en lugar de borrarlo.
+- El formulario ahora usa opciones dinámicas tomadas de BD para:
+  - categorías
+  - juegos
+  - sets
+  - finish
+  - idioma
+  - condición

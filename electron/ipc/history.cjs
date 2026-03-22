@@ -1,9 +1,12 @@
 const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
+const { requirePermission, getAuditActor } = require('../auth/helpers.cjs')
+const { updateSaleRecord, deleteSaleRecord } = require('./sales-service.cjs')
 
 function registerHistoryHandlers() {
   ipcMain.handle('sales:listToday', () => {
     const db = getDb()
+    requirePermission('history', 'consultar historial de ventas')
 
     const sales = db.prepare(`
       SELECT
@@ -21,13 +24,15 @@ function registerHistoryHandlers() {
         s.change_given,
         s.status,
         s.created_at,
+        s.updated_at,
         s.customer_id,
         c.name AS customer_name,
         c.phone AS customer_phone
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
-      WHERE date(s.created_at, 'localtime') = date('now', 'localtime')
+      WHERE s.deleted_at IS NULL
       ORDER BY s.id DESC
+      LIMIT 200
     `).all()
 
     return (sales || []).map(row => ({
@@ -46,6 +51,7 @@ function registerHistoryHandlers() {
       changeGiven: Number(row.change_given || 0),
       status: String(row.status || ''),
       createdAt: String(row.created_at || ''),
+      updatedAt: String(row.updated_at || ''),
       customerId: row.customer_id ? Number(row.customer_id) : null,
       customerName: String(row.customer_name || ''),
       customerPhone: String(row.customer_phone || ''),
@@ -54,6 +60,7 @@ function registerHistoryHandlers() {
 
   ipcMain.handle('sales:getDetail', (event, saleId) => {
     const db = getDb()
+    requirePermission('history', 'consultar detalle de ventas')
     const id = Number(saleId)
 
     if (!id) {
@@ -83,6 +90,7 @@ function registerHistoryHandlers() {
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       WHERE s.id = ?
+        AND s.deleted_at IS NULL
       LIMIT 1
     `).get(id)
 
@@ -123,12 +131,13 @@ function registerHistoryHandlers() {
         changeGiven: Number(sale.change_given || 0),
         status: String(sale.status || ''),
         createdAt: String(sale.created_at || ''),
+        updatedAt: String(sale.updated_at || ''),
         customerId: sale.customer_id ? Number(sale.customer_id) : null,
         customerName: String(sale.customer_name || ''),
         customerPhone: String(sale.customer_phone || ''),
         customerEmail: String(sale.customer_email || ''),
       },
-            items: (items || []).map(item => ({
+      items: (items || []).map(item => ({
         id: Number(item.id),
         saleId: Number(item.sale_id),
         productId: Number(item.product_id || 0),
@@ -140,6 +149,30 @@ function registerHistoryHandlers() {
         lineTotal: Number(item.line_total || 0),
       })),
     }
+  })
+
+  ipcMain.handle('sales:update', (event, payload) => {
+    requirePermission('history', 'editar ventas')
+    const db = getDb()
+    const saleId = Number(payload?.id || 0)
+
+    if (!saleId) {
+      throw new Error('Venta invalida.')
+    }
+
+    return updateSaleRecord(db, saleId, payload, getAuditActor())
+  })
+
+  ipcMain.handle('sales:delete', (event, payload) => {
+    requirePermission('history', 'eliminar ventas')
+    const db = getDb()
+    const saleId = Number(payload?.id || payload || 0)
+
+    if (!saleId) {
+      throw new Error('Venta invalida.')
+    }
+
+    return deleteSaleRecord(db, saleId, getAuditActor(), payload?.reason || '')
   })
 }
 

@@ -23,7 +23,7 @@ function mapPaymentStatus(amountPaid, amountDue) {
 }
 
 function buildReceivablesFilter(filters = {}, alias = 's') {
-  const where = []
+  const where = [`${alias}.deleted_at IS NULL`]
   const params = []
 
   const status = toText(filters.status)
@@ -139,6 +139,7 @@ function registerReceivableHandlers() {
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       WHERE s.id = ?
+        AND s.deleted_at IS NULL
       LIMIT 1
     `).get(id)
 
@@ -241,6 +242,7 @@ function registerReceivableHandlers() {
         s.payment_notes
       FROM sales s
       WHERE s.customer_id = ?
+        AND s.deleted_at IS NULL
       ORDER BY s.created_at DESC, s.id DESC
     `).all(id)
 
@@ -257,6 +259,7 @@ function registerReceivableHandlers() {
       FROM sale_payments sp
       INNER JOIN sales s ON s.id = sp.sale_id
       WHERE sp.customer_id = ?
+        AND s.deleted_at IS NULL
       ORDER BY sp.created_at DESC, sp.id DESC
     `).all(id)
 
@@ -375,6 +378,121 @@ function registerReceivableHandlers() {
       amountPaid: nextAmountPaid,
       amountDue: nextAmountDue,
       paymentStatus: nextStatus,
+    }
+  })
+
+  ipcMain.handle('receivables:addCustomerPayment', (event, payload) => {
+    const db = getDb()
+
+    const customerId = Number(payload?.customerId)
+    const amount = toNumber(payload?.amount, 0)
+    const paymentMethod = toText(payload?.paymentMethod || 'cash')
+    const notes = toText(payload?.notes)
+
+    if (!customerId) {
+      throw new Error('Cliente invalido para registrar abono global.')
+    }
+
+    if (amount <= 0) {
+      throw new Error('El abono debe ser mayor a 0.')
+    }
+
+    const receivables = db.prepare(`
+      SELECT
+        id,
+        folio,
+        total,
+        COALESCE(amount_paid, 0) as amount_paid,
+        COALESCE(amount_due, 0) as amount_due
+      FROM sales
+      WHERE customer_id = ?
+        AND COALESCE(amount_due, 0) > 0
+      ORDER BY datetime(created_at) ASC, id ASC
+    `).all(customerId)
+
+    if (!receivables.length) {
+      throw new Error('El cliente no tiene cuentas pendientes.')
+    }
+
+    const totalDue = (receivables || []).reduce((acc, row) => acc + Number(row.amount_due || 0), 0)
+
+    if (amount > totalDue + 0.01) {
+      throw new Error('El abono no puede ser mayor al saldo total pendiente del cliente.')
+    }
+
+    const inserts = db.prepare(`
+      INSERT INTO sale_payments (
+        sale_id,
+        customer_id,
+        amount,
+        payment_method,
+        notes,
+        is_initial
+      ) VALUES (?, ?, ?, ?, ?, 0)
+    `)
+
+    const updateSale = db.prepare(`
+      UPDATE sales
+      SET
+        amount_paid = ?,
+        amount_due = ?,
+        payment_status = ?
+      WHERE id = ?
+    `)
+
+    let remaining = Number(amount || 0)
+    const applied = []
+
+    const transaction = db.transaction(() => {
+      for (const sale of receivables) {
+        if (remaining <= 0) break
+
+        const due = Number(sale.amount_due || 0)
+        if (due <= 0) continue
+
+        const pay = Math.min(due, remaining)
+        const nextAmountPaid = Number(sale.amount_paid || 0) + pay
+        const nextAmountDue = Math.max(Number(sale.total || 0) - nextAmountPaid, 0)
+        const nextStatus = mapPaymentStatus(nextAmountPaid, nextAmountDue)
+
+        inserts.run(
+          Number(sale.id),
+          customerId,
+          pay,
+          paymentMethod,
+          notes || `Abono global cliente (${String(sale.folio || '')})`
+        )
+
+        updateSale.run(
+          nextAmountPaid,
+          nextAmountDue,
+          nextStatus,
+          Number(sale.id)
+        )
+
+        applied.push({
+          saleId: Number(sale.id),
+          folio: String(sale.folio || ''),
+          amount: Number(pay || 0),
+          amountDueAfter: Number(nextAmountDue || 0),
+          paymentStatus: String(nextStatus || 'paid'),
+        })
+
+        remaining = Math.max(remaining - pay, 0)
+      }
+    })
+
+    transaction()
+
+    return {
+      success: true,
+      customerId,
+      requestedAmount: Number(amount || 0),
+      appliedAmount: Number(amount || 0) - Number(remaining || 0),
+      unappliedAmount: Number(remaining || 0),
+      totalDueBefore: Number(totalDue || 0),
+      totalDueAfter: Math.max(Number(totalDue || 0) - Number(amount || 0), 0),
+      applied,
     }
   })
 

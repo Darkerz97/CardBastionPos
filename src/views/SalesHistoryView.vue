@@ -3,7 +3,7 @@
     <header class="history-header">
       <div>
         <h1>Historial de ventas</h1>
-        <p>Ventas registradas hoy</p>
+        <p>Ultimas 200 ventas activas con opcion de editar o eliminar</p>
       </div>
 
       <button class="back-btn" @click="$router.push('/')">
@@ -14,8 +14,8 @@
     <section class="history-grid">
       <div class="sales-list-panel">
         <div class="panel-header">
-          <h2>Ventas del dia</h2>
-          <span>{{ sales.length }} ventas</span>
+          <h2>Ventas</h2>
+          <span>{{ sales.length }} registros</span>
         </div>
 
         <div v-if="sales.length" class="sales-list">
@@ -36,7 +36,7 @@
             </div>
             <div class="sale-card-bottom">
               <span>{{ formatPaymentMethod(sale.paymentMethod) }}</span>
-              <span>Credito: ${{ formatPrice(sale.creditUsed) }}</span>
+              <span>{{ formatDate(sale.createdAt) }}</span>
             </div>
             <div class="sale-card-bottom">
               <span>{{ formatPaymentStatus(sale.paymentStatus) }}</span>
@@ -46,13 +46,17 @@
         </div>
 
         <div v-else class="empty-state">
-          No hay ventas registradas hoy.
+          No hay ventas registradas.
         </div>
       </div>
 
       <div class="sale-detail-panel">
         <div class="panel-header">
           <h2>Detalle de venta</h2>
+          <div class="detail-actions" v-if="selectedDetail?.sale">
+            <button class="secondary-btn" @click="openEditModal">Editar</button>
+            <button class="danger-btn" @click="handleDeleteSale">Eliminar</button>
+          </div>
         </div>
 
         <div v-if="selectedDetail?.sale" class="detail-content">
@@ -76,11 +80,7 @@
           </div>
 
           <div class="detail-items">
-            <div
-              class="detail-item"
-              v-for="item in selectedDetail.items"
-              :key="item.id"
-            >
+            <div class="detail-item" v-for="item in selectedDetail.items" :key="item.id">
               <div>
                 <strong>{{ item.productName }}</strong>
                 <p>{{ item.sku }}</p>
@@ -120,8 +120,7 @@
               <span>Saldo pendiente</span>
               <strong>${{ formatPrice(selectedDetail.sale.amountDue) }}</strong>
             </div>
-            <p v-if="selectedDetail.sale.customerName">Cliente: {{ selectedDetail.sale.customerName }}</p>
-            <p v-else>Cliente: Publico general</p>
+            <p>Cliente: {{ selectedDetail.sale.customerName || 'Publico general' }}</p>
           </div>
         </div>
 
@@ -130,15 +129,132 @@
         </div>
       </div>
     </section>
+
+    <div v-if="message" class="toast success">{{ message }}</div>
+    <div v-if="errorMessage" class="toast error">{{ errorMessage }}</div>
+
+    <div v-if="editModalOpen" class="modal-backdrop" @click.self="editModalOpen = false">
+      <div class="modal-card">
+        <h3>Editar venta {{ editForm.folio }}</h3>
+
+        <div class="form-grid">
+          <div>
+            <label>Cliente</label>
+            <select v-model="editForm.customerId" class="input">
+              <option :value="null">Publico general</option>
+              <option v-for="customer in customers" :key="customer.id" :value="customer.id">
+                {{ customer.name }}
+              </option>
+            </select>
+          </div>
+
+          <div>
+            <label>Metodo</label>
+            <select v-model="editForm.paymentMethod" class="input">
+              <option value="cash">Efectivo</option>
+              <option value="card">Tarjeta</option>
+              <option value="transfer">Transferencia</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Descuento</label>
+            <input v-model.number="editForm.discount" type="number" min="0" step="0.01" class="input" />
+          </div>
+
+          <div>
+            <label>Credito usado</label>
+            <input v-model.number="editForm.creditUsed" type="number" min="0" step="0.01" class="input" />
+          </div>
+
+          <div>
+            <label>Monto pagado</label>
+            <input v-model.number="editForm.amountPaid" type="number" min="0" step="0.01" class="input" />
+          </div>
+
+          <div>
+            <label>Fecha limite</label>
+            <input v-model="editForm.dueDate" type="date" class="input" />
+          </div>
+
+          <div class="full">
+            <label>Notas</label>
+            <textarea v-model="editForm.paymentNotes" class="input" rows="2"></textarea>
+          </div>
+        </div>
+
+        <div class="edit-items">
+          <div class="edit-items-header">
+            <h4>Productos</h4>
+            <button class="secondary-btn" @click="addItemRow">Agregar producto</button>
+          </div>
+
+          <div v-for="(item, index) in editForm.items" :key="index" class="edit-item-row">
+            <select v-model="item.productId" class="input" @change="handleProductChange(item)">
+              <option :value="0">Selecciona producto</option>
+              <option v-for="product in products" :key="product.id" :value="product.id">
+                {{ product.name }} ({{ product.sku || 'Sin SKU' }})
+              </option>
+            </select>
+            <input v-model.number="item.qty" type="number" min="1" step="1" class="input small" placeholder="Cant." />
+            <input v-model.number="item.price" type="number" min="0" step="0.01" class="input small" placeholder="Precio" />
+            <button class="danger-btn" @click="removeItemRow(index)">Quitar</button>
+          </div>
+        </div>
+
+        <div class="totals-box">
+          <div class="detail-row">
+            <span>Subtotal</span>
+            <strong>${{ formatPrice(editSubtotal) }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Total neto</span>
+            <strong>${{ formatPrice(editTotal) }}</strong>
+          </div>
+          <div class="detail-row">
+            <span>Saldo pendiente</span>
+            <strong>${{ formatPrice(editAmountDue) }}</strong>
+          </div>
+        </div>
+
+        <div class="detail-actions">
+          <button class="secondary-btn" @click="editModalOpen = false">Cancelar</button>
+          <button class="primary-btn" @click="handleSaveEdit">Guardar cambios</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const sales = ref([])
+const products = ref([])
+const customers = ref([])
 const selectedSaleId = ref(null)
 const selectedDetail = ref(null)
+const message = ref('')
+const errorMessage = ref('')
+const editModalOpen = ref(false)
+
+const editForm = reactive({
+  id: null,
+  folio: '',
+  customerId: null,
+  paymentMethod: 'cash',
+  discount: 0,
+  creditUsed: 0,
+  amountPaid: 0,
+  dueDate: '',
+  paymentNotes: '',
+  items: [],
+})
+
+function clearMessages() {
+  message.value = ''
+  errorMessage.value = ''
+}
 
 function formatPrice(value) {
   return Number(value || 0).toFixed(2)
@@ -159,8 +275,47 @@ function formatPaymentStatus(status) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return value ? new Date(value).toLocaleString() : ''
+}
+
+function buildItemPayload(item) {
+  const product = products.value.find((entry) => Number(entry.id) === Number(item.productId))
+  return {
+    id: Number(item.productId || 0),
+    sku: String(product?.sku || item.sku || ''),
+    name: String(product?.name || item.name || ''),
+    qty: Number(item.qty || 0),
+    price: Number(item.price || 0),
+    lineTotal: Number(item.qty || 0) * Number(item.price || 0),
+  }
+}
+
+const editSubtotal = computed(() => {
+  return editForm.items.reduce((total, item) => total + (Number(item.qty || 0) * Number(item.price || 0)), 0)
+})
+
+const editTotal = computed(() => {
+  return Math.max(Number(editSubtotal.value || 0) - Number(editForm.discount || 0) - Number(editForm.creditUsed || 0), 0)
+})
+
+const editAmountDue = computed(() => {
+  return Math.max(Number(editTotal.value || 0) - Number(editForm.amountPaid || 0), 0)
+})
+
+function addItemRow() {
+  editForm.items.push({ productId: 0, qty: 1, price: 0, sku: '', name: '' })
+}
+
+function removeItemRow(index) {
+  editForm.items.splice(index, 1)
+}
+
+function handleProductChange(item) {
+  const product = products.value.find((entry) => Number(entry.id) === Number(item.productId))
+  if (!product) return
+  item.price = Number(product.price || 0)
+  item.sku = String(product.sku || '')
+  item.name = String(product.name || '')
 }
 
 async function loadSales() {
@@ -168,7 +323,19 @@ async function loadSales() {
 
   if (sales.value.length && !selectedSaleId.value) {
     await selectSale(sales.value[0].id)
+  } else if (!sales.value.some((sale) => sale.id === selectedSaleId.value)) {
+    selectedSaleId.value = null
+    selectedDetail.value = null
   }
+}
+
+async function loadDependencies() {
+  const [customersData, productsData] = await Promise.all([
+    window.posAPI.getCustomers(),
+    window.posAPI.getProducts(),
+  ])
+  customers.value = customersData || []
+  products.value = productsData || []
 }
 
 async function selectSale(saleId) {
@@ -176,8 +343,84 @@ async function selectSale(saleId) {
   selectedDetail.value = await window.posAPI.getSaleDetail(saleId)
 }
 
+function openEditModal() {
+  clearMessages()
+  if (!selectedDetail.value?.sale) return
+
+  editForm.id = selectedDetail.value.sale.id
+  editForm.folio = selectedDetail.value.sale.folio
+  editForm.customerId = selectedDetail.value.sale.customerId
+  editForm.paymentMethod = selectedDetail.value.sale.paymentMethod
+  editForm.discount = Number(selectedDetail.value.sale.discount || 0)
+  editForm.creditUsed = Number(selectedDetail.value.sale.creditUsed || 0)
+  editForm.amountPaid = Number(selectedDetail.value.sale.amountPaid || 0)
+  editForm.dueDate = selectedDetail.value.sale.dueDate ? String(selectedDetail.value.sale.dueDate).slice(0, 10) : ''
+  editForm.paymentNotes = selectedDetail.value.sale.paymentNotes || ''
+  editForm.items = selectedDetail.value.items.map((item) => ({
+    productId: Number(item.productId || 0),
+    qty: Number(item.qty || 1),
+    price: Number(item.unitPrice || 0),
+    sku: String(item.sku || ''),
+    name: String(item.productName || ''),
+  }))
+  editModalOpen.value = true
+}
+
+async function handleSaveEdit() {
+  try {
+    clearMessages()
+    const items = editForm.items.map(buildItemPayload).filter((item) => item.id && item.qty > 0)
+
+    if (!items.length) {
+      throw new Error('Agrega al menos un producto a la venta.')
+    }
+
+    await window.posAPI.updateSale({
+      id: editForm.id,
+      items,
+      subtotal: Number(editSubtotal.value || 0),
+      discount: Number(editForm.discount || 0),
+      total: Number(editTotal.value || 0),
+      payment_method: editForm.paymentMethod,
+      cash_received: editForm.paymentMethod === 'cash' ? Number(editForm.amountPaid || 0) : 0,
+      customerId: editForm.customerId,
+      credit_used: Number(editForm.creditUsed || 0),
+      amount_paid: Number(editForm.amountPaid || 0),
+      due_date: editForm.dueDate || null,
+      payment_notes: editForm.paymentNotes,
+    })
+
+    editModalOpen.value = false
+    message.value = 'Venta actualizada.'
+    await Promise.all([loadSales(), loadDependencies()])
+    await selectSale(editForm.id)
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo actualizar la venta.'
+  }
+}
+
+async function handleDeleteSale() {
+  if (!selectedDetail.value?.sale) return
+  if (!window.confirm(`Eliminar venta ${selectedDetail.value.sale.folio}?`)) return
+
+  try {
+    clearMessages()
+    await window.posAPI.deleteSale({ id: selectedDetail.value.sale.id })
+    message.value = 'Venta eliminada.'
+    selectedSaleId.value = null
+    selectedDetail.value = null
+    await Promise.all([loadSales(), loadDependencies()])
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo eliminar la venta.'
+  }
+}
+
 onMounted(async () => {
-  await loadSales()
+  try {
+    await Promise.all([loadSales(), loadDependencies()])
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo cargar el historial.'
+  }
 })
 </script>
 
@@ -189,31 +432,29 @@ onMounted(async () => {
   padding: 20px;
 }
 
-.history-header {
+.history-header,
+.panel-header,
+.detail-actions,
+.edit-items-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.history-header {
   margin-bottom: 20px;
 }
 
-.history-header h1 {
+.history-header h1,
+.panel-header h2 {
   margin: 0;
   color: #f2b138;
 }
 
 .history-header p {
-  margin: 6px 0 0 0;
+  margin: 6px 0 0;
   color: #bcbcbc;
-}
-
-.back-btn {
-  border: none;
-  border-radius: 12px;
-  padding: 12px 16px;
-  background: #f29a2e;
-  color: #111;
-  font-weight: 700;
-  cursor: pointer;
 }
 
 .history-grid {
@@ -223,23 +464,12 @@ onMounted(async () => {
 }
 
 .sales-list-panel,
-.sale-detail-panel {
+.sale-detail-panel,
+.modal-card {
   background: #232323;
   border: 1px solid #323232;
   border-radius: 18px;
   padding: 18px;
-}
-
-.panel-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-
-.panel-header h2 {
-  margin: 0;
-  color: #f2b138;
 }
 
 .sales-list {
@@ -284,7 +514,8 @@ onMounted(async () => {
 }
 
 .detail-block,
-.detail-total {
+.detail-total,
+.totals-box {
   background: #2c2c2c;
   border-radius: 14px;
   padding: 14px;
@@ -296,7 +527,8 @@ onMounted(async () => {
   gap: 10px;
 }
 
-.detail-item {
+.detail-item,
+.edit-item-row {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -308,7 +540,7 @@ onMounted(async () => {
 .detail-item p,
 .detail-item small {
   display: block;
-  margin: 4px 0 0 0;
+  margin: 4px 0 0;
   color: #bcbcbc;
 }
 
@@ -318,6 +550,37 @@ onMounted(async () => {
   color: #f2b138;
 }
 
+.back-btn,
+.primary-btn,
+.secondary-btn,
+.danger-btn {
+  border: none;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.back-btn {
+  background: #f29a2e;
+  color: #111;
+}
+
+.primary-btn {
+  background: #22c55e;
+  color: white;
+}
+
+.secondary-btn {
+  background: #2563eb;
+  color: white;
+}
+
+.danger-btn {
+  background: #b91c1c;
+  color: white;
+}
+
 .empty-state {
   display: flex;
   align-items: center;
@@ -325,5 +588,78 @@ onMounted(async () => {
   min-height: 300px;
   color: #bcbcbc;
   text-align: center;
+}
+
+.toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+
+.toast.success {
+  background: #166534;
+}
+
+.toast.error {
+  background: #7f1d1d;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.modal-card {
+  width: min(980px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.full {
+  grid-column: 1 / -1;
+}
+
+.input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid #3a3a3a;
+  background: #2a2a2a;
+  color: white;
+}
+
+.input.small {
+  max-width: 130px;
+}
+
+.edit-items {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .history-grid,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .edit-item-row {
+    flex-direction: column;
+  }
 }
 </style>

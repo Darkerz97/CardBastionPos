@@ -2,6 +2,19 @@ const { contextBridge, ipcRenderer } = require('electron')
 
 contextBridge.exposeInMainWorld('posAPI', {
   // =========================
+  // Sesion / usuarios
+  // =========================
+  listLoginUsers: () => ipcRenderer.invoke('auth:listUsers'),
+  login: (payload) => ipcRenderer.invoke('auth:login', payload),
+  logout: () => ipcRenderer.invoke('auth:logout'),
+  getCurrentSession: () => ipcRenderer.invoke('auth:getSession'),
+  getUsers: () => ipcRenderer.invoke('users:list'),
+  createUser: (payload) => ipcRenderer.invoke('users:create', payload),
+  updateUser: (payload) => ipcRenderer.invoke('users:update', payload),
+  getWindowDefinitions: () => ipcRenderer.invoke('users:getWindowDefinitions'),
+  getAuditLogs: () => ipcRenderer.invoke('audit:list'),
+
+  // =========================
   // Productos
   // =========================
   getProducts: () => ipcRenderer.invoke('products:list'),
@@ -11,6 +24,8 @@ contextBridge.exposeInMainWorld('posAPI', {
   updateProduct: (payload) => ipcRenderer.invoke('products:update', payload),
   deactivateProduct: (productId) => ipcRenderer.invoke('products:deactivate', productId),
   reactivateProduct: (productId) => ipcRenderer.invoke('products:reactivate', productId),
+  deleteProduct: (payload) => ipcRenderer.invoke('products:delete', payload),
+  getProductCatalogOptions: () => ipcRenderer.invoke('products:getCatalogOptions'),
   importProductsFromExcel: () => ipcRenderer.invoke('products:importExcel'),
   exportProductTemplate: () => ipcRenderer.invoke('products:exportTemplate'),
   selectProductImage: () => ipcRenderer.invoke('products:selectImage'),
@@ -40,6 +55,8 @@ contextBridge.exposeInMainWorld('posAPI', {
   createSale: (payload) => ipcRenderer.invoke('sales:create', payload),
   getTodaySales: () => ipcRenderer.invoke('sales:listToday'),
   getSaleDetail: (saleId) => ipcRenderer.invoke('sales:getDetail', saleId),
+  updateSale: (payload) => ipcRenderer.invoke('sales:update', payload),
+  deleteSale: (payload) => ipcRenderer.invoke('sales:delete', payload),
 
   // =========================
   // Caja
@@ -48,6 +65,9 @@ contextBridge.exposeInMainWorld('posAPI', {
   openCashSession: (openingAmount) => ipcRenderer.invoke('cash:openSession', openingAmount),
   getCurrentCashSummary: () => ipcRenderer.invoke('cash:getCurrentSummary'),
   closeCashSession: (payload) => ipcRenderer.invoke('cash:closeSession', payload),
+  getCashSessions: () => ipcRenderer.invoke('cash:listSessions'),
+  updateCashSession: (payload) => ipcRenderer.invoke('cash:updateSession', payload),
+  deleteCashSession: (payload) => ipcRenderer.invoke('cash:deleteSession', payload),
 
   getCashStatus: async () => {
     const session = await ipcRenderer.invoke('cash:getOpenSession')

@@ -4,20 +4,25 @@
       <div class="brand">
         <h1>Card Bastion</h1>
         <p>Point of Sale</p>
+        <small v-if="sessionState.user" class="session-caption">
+          {{ sessionState.user.displayName }}
+        </small>
       </div>
 
       <div class="menu-block">
         <button class="menu-btn active">Nueva venta</button>
-        <button class="menu-btn" @click="$router.push('/history')">Historial</button>
-        <button class="menu-btn" @click="$router.push('/cash')">Caja</button>
-        <button class="menu-btn" @click="$router.push('/products')">Productos</button>
-        <button class="menu-btn" @click="$router.push('/backup')">Respaldo</button>
-        <button class="menu-btn" @click="$router.push('/reports')">Reportes</button>
-        <button class="menu-btn" @click="$router.push('/customers')">Clientes</button>
-        <button class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
-        <button class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
-        <button class="menu-btn" @click="$router.push('/preorders')">Preventas</button>
-        <button class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
+        <button v-if="hasWindowAccess('history')" class="menu-btn" @click="$router.push('/history')">Historial</button>
+        <button v-if="hasWindowAccess('cash')" class="menu-btn" @click="$router.push('/cash')">Caja</button>
+        <button v-if="hasWindowAccess('products')" class="menu-btn" @click="$router.push('/products')">Productos</button>
+        <button v-if="hasWindowAccess('backup')" class="menu-btn" @click="$router.push('/backup')">Respaldo</button>
+        <button v-if="hasWindowAccess('reports')" class="menu-btn" @click="$router.push('/reports')">Reportes</button>
+        <button v-if="hasWindowAccess('customers')" class="menu-btn" @click="$router.push('/customers')">Clientes</button>
+        <button v-if="hasWindowAccess('customer-history')" class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
+        <button v-if="hasWindowAccess('receivables')" class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
+        <button v-if="hasWindowAccess('preorders')" class="menu-btn" @click="$router.push('/preorders')">Preventas</button>
+        <button v-if="hasWindowAccess('tournaments')" class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
+        <button v-if="hasWindowAccess('users')" class="menu-btn" @click="$router.push('/users')">Usuarios</button>
+        <button class="menu-btn logout-btn" @click="handleLogout">Cambiar usuario</button>
       </div>
     </aside>
 
@@ -344,6 +349,7 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useCartStore } from '../stores/cartStore'
+import { clearSessionState, hasWindowAccess, sessionState } from '../session'
 
 const products = ref([])
 const search = ref('')
@@ -741,6 +747,12 @@ async function confirmSale() {
   }
 }
 
+async function handleLogout() {
+  await window.posAPI.logout()
+  clearSessionState()
+  window.location.reload()
+}
+
 onMounted(async () => {
   await loadProducts()
   await checkCashStatus()
@@ -777,6 +789,12 @@ onMounted(async () => {
   color: #bdbdbd;
 }
 
+.session-caption {
+  display: block;
+  margin-top: 10px;
+  color: #d4d4d8;
+}
+
 .menu-block {
   display: flex;
   flex-direction: column;
@@ -800,6 +818,10 @@ onMounted(async () => {
   background: #f29a2e;
   color: #111;
   font-weight: 700;
+}
+
+.logout-btn {
+  background: #7f1d1d;
 }
 
 .main-content {

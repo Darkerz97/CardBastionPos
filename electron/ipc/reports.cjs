@@ -23,6 +23,8 @@ function buildSalesFilter(filters = {}, tableAlias = 's') {
   const where = []
   const params = []
 
+  where.push(`${tableAlias}.deleted_at IS NULL`)
+
   if (dateFrom) {
     where.push(`date(${tableAlias}.created_at, 'localtime') >= ?`)
     params.push(dateFrom)
@@ -355,6 +357,7 @@ function registerReportHandlers() {
         COALESCE(SUM(CASE WHEN amount_due > 0 AND due_date IS NOT NULL AND datetime(due_date) < datetime('now') THEN 1 ELSE 0 END), 0) as overdue_count,
         COALESCE(SUM(CASE WHEN amount_due > 0 AND due_date IS NOT NULL AND datetime(due_date) < datetime('now') THEN amount_due ELSE 0 END), 0) as overdue_amount
       FROM sales
+      WHERE deleted_at IS NULL
     `).get()
 
     const byCustomer = db.prepare(`
@@ -366,7 +369,8 @@ function registerReportHandlers() {
         COALESCE(SUM(CASE WHEN s.amount_due > 0 THEN 1 ELSE 0 END), 0) as open_sales
       FROM sales s
       INNER JOIN customers c ON c.id = s.customer_id
-      WHERE s.amount_due > 0
+      WHERE s.deleted_at IS NULL
+        AND s.amount_due > 0
       GROUP BY c.id, c.name, c.phone
       ORDER BY pending_balance DESC
       LIMIT 50
@@ -409,6 +413,302 @@ function registerReportHandlers() {
         totalAmount: Number(row.total_amount || 0),
         cashAmount: Number(row.cash_amount || 0),
         cardAmount: Number(row.card_amount || 0),
+      })),
+    }
+  })
+
+  ipcMain.handle('reports:singlesDashboard', (event, filters = {}) => {
+    const db = getDb()
+    const outdatedDays = Number(filters?.outdatedDays || 7)
+    const limitTop = Number(filters?.topLimit || 20)
+
+    const outdatedSingles = db.prepare(`
+      SELECT
+        p.id,
+        p.name,
+        p.card_name,
+        p.set_name,
+        p.finish,
+        p.language,
+        p.card_condition,
+        p.price,
+        p.starcity_price_usd,
+        p.starcity_last_sync
+      FROM products p
+      WHERE COALESCE(p.product_type, 'normal') = 'single'
+        AND p.active = 1
+        AND (
+          p.starcity_last_sync IS NULL OR
+          datetime(p.starcity_last_sync) <= datetime('now', ?)
+        )
+      ORDER BY p.starcity_last_sync ASC
+      LIMIT 200
+    `).all(`-${Math.max(outdatedDays, 1)} days`)
+
+    const singlesWithoutLink = db.prepare(`
+      SELECT
+        p.id,
+        p.name,
+        p.card_name,
+        p.set_name,
+        p.finish,
+        p.language,
+        p.card_condition,
+        p.price
+      FROM products p
+      WHERE COALESCE(p.product_type, 'normal') = 'single'
+        AND p.active = 1
+        AND (p.starcity_url IS NULL OR trim(p.starcity_url) = '')
+      ORDER BY p.name ASC
+      LIMIT 200
+    `).all()
+
+    const recentPriceChanges = db.prepare(`
+      SELECT
+        p.id as product_id,
+        p.name,
+        p.card_name,
+        p.set_name,
+        newer.price as latest_price_usd,
+        newer.last_checked_at as latest_checked_at,
+        older.price as previous_price_usd,
+        older.last_checked_at as previous_checked_at
+      FROM products p
+      INNER JOIN single_market_prices newer
+        ON newer.id = (
+          SELECT smp.id
+          FROM single_market_prices smp
+          WHERE smp.product_id = p.id
+          ORDER BY smp.id DESC
+          LIMIT 1
+        )
+      LEFT JOIN single_market_prices older
+        ON older.id = (
+          SELECT smp2.id
+          FROM single_market_prices smp2
+          WHERE smp2.product_id = p.id
+          ORDER BY smp2.id DESC
+          LIMIT 1 OFFSET 1
+        )
+      WHERE COALESCE(p.product_type, 'normal') = 'single'
+      ORDER BY newer.id DESC
+      LIMIT 100
+    `).all()
+
+    const topSinglesSold = db.prepare(`
+      SELECT
+        p.id,
+        p.name,
+        p.card_name,
+        p.set_name,
+        p.finish,
+        p.language,
+        p.card_condition,
+        COALESCE(SUM(si.qty), 0) as total_qty,
+        COALESCE(SUM(si.line_total), 0) as total_sales,
+        COALESCE(SUM(si.line_total - (si.qty * COALESCE(si.unit_cost, 0))), 0) as estimated_margin
+      FROM sale_items si
+      INNER JOIN products p ON p.id = si.product_id
+      WHERE COALESCE(p.product_type, 'normal') = 'single'
+      GROUP BY p.id, p.name, p.card_name, p.set_name, p.finish, p.language, p.card_condition
+      ORDER BY total_qty DESC, total_sales DESC
+      LIMIT ?
+    `).all(Math.max(limitTop, 1))
+
+    const totals = db.prepare(`
+      SELECT
+        COALESCE(SUM(CASE WHEN COALESCE(product_type, 'normal') = 'single' AND active = 1 THEN 1 ELSE 0 END), 0) as total_singles,
+        COALESCE(SUM(CASE WHEN COALESCE(product_type, 'normal') = 'single' AND active = 1 THEN stock ELSE 0 END), 0) as total_units,
+        COALESCE(SUM(CASE WHEN COALESCE(product_type, 'normal') = 'single' AND active = 1 THEN stock * cost ELSE 0 END), 0) as total_cost_value,
+        COALESCE(SUM(CASE WHEN COALESCE(product_type, 'normal') = 'single' AND active = 1 THEN stock * price ELSE 0 END), 0) as total_sale_value
+      FROM products
+    `).get()
+
+    return {
+      success: true,
+      summary: {
+        totalSingles: Number(totals?.total_singles || 0),
+        totalUnits: Number(totals?.total_units || 0),
+        totalCostValue: Number(totals?.total_cost_value || 0),
+        totalSaleValue: Number(totals?.total_sale_value || 0),
+        outdatedCount: Number(outdatedSingles?.length || 0),
+        withoutLinkCount: Number(singlesWithoutLink?.length || 0),
+      },
+      outdatedSingles: (outdatedSingles || []).map((row) => ({
+        id: Number(row.id),
+        name: String(row.name || ''),
+        cardName: String(row.card_name || ''),
+        setName: String(row.set_name || ''),
+        finish: String(row.finish || ''),
+        language: String(row.language || ''),
+        cardCondition: String(row.card_condition || ''),
+        priceMxn: Number(row.price || 0),
+        starcityPriceUsd: Number(row.starcity_price_usd || 0),
+        starcityLastSync: row.starcity_last_sync ? String(row.starcity_last_sync) : '',
+      })),
+      singlesWithoutLink: (singlesWithoutLink || []).map((row) => ({
+        id: Number(row.id),
+        name: String(row.name || ''),
+        cardName: String(row.card_name || ''),
+        setName: String(row.set_name || ''),
+        finish: String(row.finish || ''),
+        language: String(row.language || ''),
+        cardCondition: String(row.card_condition || ''),
+        priceMxn: Number(row.price || 0),
+      })),
+      recentPriceChanges: (recentPriceChanges || []).map((row) => {
+        const latest = Number(row.latest_price_usd || 0)
+        const previous = Number(row.previous_price_usd || 0)
+        return {
+          productId: Number(row.product_id),
+          name: String(row.name || ''),
+          cardName: String(row.card_name || ''),
+          setName: String(row.set_name || ''),
+          latestPriceUsd: latest,
+          previousPriceUsd: previous,
+          deltaUsd: latest - previous,
+          latestCheckedAt: String(row.latest_checked_at || ''),
+          previousCheckedAt: String(row.previous_checked_at || ''),
+        }
+      }),
+      topSinglesSold: (topSinglesSold || []).map((row) => ({
+        id: Number(row.id),
+        name: String(row.name || ''),
+        cardName: String(row.card_name || ''),
+        setName: String(row.set_name || ''),
+        finish: String(row.finish || ''),
+        language: String(row.language || ''),
+        cardCondition: String(row.card_condition || ''),
+        totalQty: Number(row.total_qty || 0),
+        totalSales: Number(row.total_sales || 0),
+        estimatedMargin: Number(row.estimated_margin || 0),
+      })),
+    }
+  })
+
+  ipcMain.handle('reports:preordersDashboard', (event, filters = {}) => {
+    const db = getDb()
+    const dateFrom = toSqlDate(filters?.dateFrom)
+    const dateTo = toSqlDate(filters?.dateTo)
+
+    const where = []
+    const params = []
+    if (dateFrom) {
+      where.push(`date(p.created_at, 'localtime') >= ?`)
+      params.push(dateFrom)
+    }
+    if (dateTo) {
+      where.push(`date(p.created_at, 'localtime') <= ?`)
+      params.push(dateTo)
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
+
+    const summary = db.prepare(`
+      SELECT
+        COUNT(*) as total_preorders,
+        COALESCE(SUM(CASE WHEN p.status = 'active' THEN 1 ELSE 0 END), 0) as active_preorders,
+        COALESCE(SUM(CASE WHEN p.status = 'partial' THEN 1 ELSE 0 END), 0) as partial_preorders,
+        COALESCE(SUM(CASE WHEN p.status = 'paid' THEN 1 ELSE 0 END), 0) as paid_preorders,
+        COALESCE(SUM(CASE WHEN p.status = 'fulfilled' THEN 1 ELSE 0 END), 0) as fulfilled_preorders,
+        COALESCE(SUM(CASE WHEN p.status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelled_preorders,
+        COALESCE(SUM(p.total_amount), 0) as total_amount,
+        COALESCE(SUM(p.amount_paid), 0) as total_paid,
+        COALESCE(SUM(p.amount_due), 0) as total_due
+      FROM preorders p
+      ${whereSql}
+    `).get(...params)
+
+    const paymentsToday = db.prepare(`
+      SELECT
+        COUNT(*) as total_payments,
+        COALESCE(SUM(amount), 0) as total_amount,
+        COALESCE(SUM(CASE WHEN payment_method = 'cash' THEN amount ELSE 0 END), 0) as cash_amount,
+        COALESCE(SUM(CASE WHEN payment_method = 'card' THEN amount ELSE 0 END), 0) as card_amount,
+        COALESCE(SUM(CASE WHEN payment_method = 'transfer' THEN amount ELSE 0 END), 0) as transfer_amount
+      FROM preorder_payments
+      WHERE date(created_at, 'localtime') = date('now', 'localtime')
+    `).get()
+
+    const byCustomer = db.prepare(`
+      SELECT
+        c.id as customer_id,
+        c.name as customer_name,
+        COUNT(p.id) as total_preorders,
+        COALESCE(SUM(p.amount_due), 0) as pending_balance,
+        COALESCE(SUM(p.total_amount), 0) as total_amount
+      FROM preorders p
+      INNER JOIN customers c ON c.id = p.customer_id
+      ${whereSql}
+      GROUP BY c.id, c.name
+      ORDER BY pending_balance DESC, total_preorders DESC
+      LIMIT 20
+    `).all(...params)
+
+    const byProduct = db.prepare(`
+      SELECT
+        pi.product_name,
+        COALESCE(pi.sku, '') as sku,
+        COALESCE(SUM(pi.quantity), 0) as total_qty,
+        COALESCE(SUM(pi.line_total), 0) as total_amount
+      FROM preorder_items pi
+      INNER JOIN preorders p ON p.id = pi.preorder_id
+      ${whereSql}
+      GROUP BY pi.product_name, COALESCE(pi.sku, '')
+      ORDER BY total_qty DESC, total_amount DESC
+      LIMIT 30
+    `).all(...params)
+
+    const byReleaseDate = db.prepare(`
+      SELECT
+        date(p.release_date, 'localtime') as release_date,
+        COUNT(*) as total_preorders,
+        COALESCE(SUM(p.total_amount), 0) as total_amount,
+        COALESCE(SUM(p.amount_due), 0) as total_due
+      FROM preorders p
+      WHERE p.release_date IS NOT NULL
+      GROUP BY date(p.release_date, 'localtime')
+      ORDER BY release_date ASC
+      LIMIT 60
+    `).all()
+
+    return {
+      success: true,
+      summary: {
+        totalPreorders: Number(summary?.total_preorders || 0),
+        activePreorders: Number(summary?.active_preorders || 0),
+        partialPreorders: Number(summary?.partial_preorders || 0),
+        paidPreorders: Number(summary?.paid_preorders || 0),
+        fulfilledPreorders: Number(summary?.fulfilled_preorders || 0),
+        cancelledPreorders: Number(summary?.cancelled_preorders || 0),
+        totalAmount: Number(summary?.total_amount || 0),
+        totalPaid: Number(summary?.total_paid || 0),
+        totalDue: Number(summary?.total_due || 0),
+      },
+      paymentsToday: {
+        totalPayments: Number(paymentsToday?.total_payments || 0),
+        totalAmount: Number(paymentsToday?.total_amount || 0),
+        cashAmount: Number(paymentsToday?.cash_amount || 0),
+        cardAmount: Number(paymentsToday?.card_amount || 0),
+        transferAmount: Number(paymentsToday?.transfer_amount || 0),
+      },
+      byCustomer: (byCustomer || []).map((row) => ({
+        customerId: Number(row.customer_id),
+        customerName: String(row.customer_name || ''),
+        totalPreorders: Number(row.total_preorders || 0),
+        pendingBalance: Number(row.pending_balance || 0),
+        totalAmount: Number(row.total_amount || 0),
+      })),
+      byProduct: (byProduct || []).map((row) => ({
+        productName: String(row.product_name || ''),
+        sku: String(row.sku || ''),
+        totalQty: Number(row.total_qty || 0),
+        totalAmount: Number(row.total_amount || 0),
+      })),
+      byReleaseDate: (byReleaseDate || []).map((row) => ({
+        releaseDate: String(row.release_date || ''),
+        totalPreorders: Number(row.total_preorders || 0),
+        totalAmount: Number(row.total_amount || 0),
+        totalDue: Number(row.total_due || 0),
       })),
     }
   })

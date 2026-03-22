@@ -15,6 +15,9 @@ const {registerCustomerHandlers} = require('./ipc/customers.cjs')
 const { registerTournamentHandlers } = require('./ipc/tournaments.cjs')
 const { registerInventoryHandlers } = require('./ipc/inventory.cjs')
 const { registerReceivableHandlers } = require('./ipc/receivables.cjs')
+const { registerSinglesHandlers } = require('./ipc/singles.cjs')
+const { registerPreorderHandlers } = require('./ipc/preorders.cjs')
+const { registerUserHandlers } = require('./ipc/users.cjs')
 
 
 const isDev = !app.isPackaged
@@ -66,6 +69,9 @@ app.whenReady().then(() => {
   registerTournamentHandlers()
   registerInventoryHandlers()
   registerReceivableHandlers()
+  registerSinglesHandlers()
+  registerPreorderHandlers()
+  registerUserHandlers()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

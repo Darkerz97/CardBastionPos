@@ -27,7 +27,10 @@
           </div>
           <div>
             <label>Categoria</label>
-            <input v-model="form.category" class="input" />
+            <input v-model="form.category" class="input" list="category-options" />
+            <datalist id="category-options">
+              <option v-for="option in catalogOptions.categories" :key="option" :value="option" />
+            </datalist>
           </div>
           <div><label>SKU</label><input v-model="form.sku" class="input" /></div>
           <div><label>Codigo barras</label><input v-model="form.barcode" class="input" /></div>
@@ -61,31 +64,37 @@
                   <label>Juego</label>
                   <select v-model="form.game" class="input">
                     <option value="">Selecciona</option>
-                    <option v-for="option in gameOptions" :key="option" :value="option">{{ option }}</option>
+                    <option v-for="option in mergedGameOptions" :key="option" :value="option">{{ option }}</option>
                   </select>
                 </div>
-                <div><label>Set</label><input v-model="form.set_name" class="input" /></div>
+                <div>
+                  <label>Set</label>
+                  <input v-model="form.set_name" class="input" list="set-options" />
+                  <datalist id="set-options">
+                    <option v-for="option in catalogOptions.sets" :key="option" :value="option" />
+                  </datalist>
+                </div>
                 <div><label>Set code</label><input v-model="form.set_code" class="input" /></div>
                 <div><label>Collector</label><input v-model="form.collector_number" class="input" /></div>
                 <div>
                   <label>Finish</label>
                   <select v-model="form.finish" class="input">
                     <option value="">Selecciona</option>
-                    <option v-for="option in finishOptions" :key="option" :value="option">{{ option }}</option>
+                    <option v-for="option in mergedFinishOptions" :key="option" :value="option">{{ option }}</option>
                   </select>
                 </div>
                 <div>
                   <label>Idioma</label>
                   <select v-model="form.language" class="input">
                     <option value="">Selecciona</option>
-                    <option v-for="option in languageOptions" :key="option" :value="option">{{ option }}</option>
+                    <option v-for="option in mergedLanguageOptions" :key="option" :value="option">{{ option }}</option>
                   </select>
                 </div>
                 <div>
                   <label>Condicion</label>
                   <select v-model="form.card_condition" class="input">
                     <option value="">Selecciona</option>
-                    <option v-for="option in cardConditionOptions" :key="option" :value="option">{{ option }}</option>
+                    <option v-for="option in mergedConditionOptions" :key="option" :value="option">{{ option }}</option>
                   </select>
                 </div>
                 <div><label>Scryfall ID</label><input v-model="form.scryfall_id" class="input" /></div>
@@ -151,6 +160,7 @@
               <button v-if="isSingleProduct(product)" class="small-btn" @click="openLinkModal(product)">Vincular SCG</button>
               <button v-if="isSingleProduct(product)" class="small-btn" @click="handleUpdateSinglePrice(product)">Sync SCG</button>
               <button class="danger-btn" @click="handleDeactivateProduct(product)">Desactivar</button>
+              <button class="danger-btn" @click="handleDeleteProduct(product)">Eliminar</button>
             </div>
           </div>
         </div>
@@ -277,12 +287,17 @@ const linkSearchLoading = ref(false)
 const linkSearchMessage = ref('')
 const linkSearchError = ref('')
 const linkImportLoading = ref(false)
+const catalogOptions = reactive({ categories: [], games: [], sets: [], finishes: [], languages: [], conditions: [] })
 const form = reactive({ product_type:'normal', sku:'', barcode:'', name:'', category:'', price:0, cost:0, stock:0, min_stock:0, image:'', game:'', card_name:'', set_name:'', set_code:'', collector_number:'', finish:'', language:'', card_condition:'', scryfall_id:'', starcity_url:'', starcity_variant_key:'', starcity_price_usd:0, starcity_last_sync:null, pricing_mode:'manual', pricing_formula_type:'', pricing_formula_value:0 })
 const adjustModal = reactive({ open:false, productId:null, productName:'', currentStock:0, mode:'add', quantity:0, notes:'' })
 const entryModal = reactive({ open:false, productId:null, productName:'', currentStock:0, quantity:0, cost:'', reference:'', notes:'' })
 const movementsModal = reactive({ open:false, productId:null, productName:'' })
 const linkModal = reactive({ open:false, productId:null, productName:'', query:'', game:'Magic: The Gathering', manualUrl:'', results:[] })
 const isSingleForm = computed(() => form.product_type === 'single')
+const mergedGameOptions = computed(() => Array.from(new Set([...gameOptions, ...catalogOptions.games])).sort())
+const mergedFinishOptions = computed(() => Array.from(new Set([...finishOptions, ...catalogOptions.finishes])).sort())
+const mergedLanguageOptions = computed(() => Array.from(new Set([...languageOptions, ...catalogOptions.languages])).sort())
+const mergedConditionOptions = computed(() => Array.from(new Set([...cardConditionOptions, ...catalogOptions.conditions])).sort())
 const filteredActiveProducts = computed(() => {
   const term = normalizeSearchTerm(productSearch.value)
   return (products.value || []).filter((product) => {
@@ -318,16 +333,18 @@ function clearMessages(){ message.value=''; errorMessage.value='' }
 function clearLinkSearchState(){ linkSearchLoading.value=false; linkSearchMessage.value=''; linkSearchError.value=''; linkImportLoading.value=false }
 function cancelEdit(){ editingId.value=null; showSingleDetails.value=false; Object.assign(form,{ product_type:'normal', sku:'', barcode:'', name:'', category:'', price:0, cost:0, stock:0, min_stock:0, image:'', game:'', card_name:'', set_name:'', set_code:'', collector_number:'', finish:'', language:'', card_condition:'', scryfall_id:'', starcity_url:'', starcity_variant_key:'', starcity_price_usd:0, starcity_last_sync:null, pricing_mode:'manual', pricing_formula_type:'', pricing_formula_value:0 }) }
 async function loadProducts(){ try{ const [a,b]=await Promise.all([window.posAPI.getProducts(), window.posAPI.getInactiveProducts()]); products.value=a||[]; inactiveProducts.value=b||[] }catch(e){ products.value=[]; inactiveProducts.value=[] } }
+async function loadCatalogOptions(){ try{ const response=await window.posAPI.getProductCatalogOptions(); Object.assign(catalogOptions,{ categories:response?.categories||[], games:response?.games||[], sets:response?.sets||[], finishes:response?.finishes||[], languages:response?.languages||[], conditions:response?.conditions||[] }) }catch(e){ Object.assign(catalogOptions,{ categories:[], games:[], sets:[], finishes:[], languages:[], conditions:[] }) } }
 async function loadPricingConfig(){ try{ const r=await window.posAPI.getSinglesPricingConfig(); if(r?.config) Object.assign(pricingConfig,{ exchangeRate:Number(r.config.exchangeRate||18), multiplier:Number(r.config.multiplier||1), fixedMarkup:Number(r.config.fixedMarkup||0), roundingMode:String(r.config.roundingMode||'none') }) }catch(e){} }
 async function savePricingConfig(){ try{ clearMessages(); const r=await window.posAPI.updateSinglesPricingConfig(pricingConfig); if(r?.success) message.value='Configuracion guardada.' }catch(e){ errorMessage.value=e?.message||'Error guardando config.' } }
 async function handleSelectImage(){ try{ const r=await window.posAPI.selectProductImage(); if(r?.success) form.image=r.fileName||'' }catch(e){ errorMessage.value=e?.message||'Error seleccionando imagen.' } }
 async function selectProduct(p){ editingId.value=p.id; showSingleDetails.value=String(p?.product_type||'normal').toLowerCase()==='single'; Object.assign(form,p,{ product_type:p.product_type||'normal', pricing_mode:p.pricing_mode||'manual' }) }
 function payloadFromForm(){ return { ...form, price:Number(form.price||0), cost:Number(form.cost||0), stock:Number(form.stock||0), min_stock:Number(form.min_stock||0), starcity_price_usd:Number(form.starcity_price_usd||0), pricing_formula_value:Number(form.pricing_formula_value||0) } }
-async function handleSaveProduct(){ try{ clearMessages(); let r=null; const payload=payloadFromForm(); if(editingId.value){ r=form.product_type==='single' ? await window.posAPI.updateSingle({ id:editingId.value, ...payload }) : await window.posAPI.updateProduct({ id:editingId.value, ...payload }) } else { r=form.product_type==='single' ? await window.posAPI.createSingle(payload) : await window.posAPI.createProduct(payload) } if(r?.success){ message.value='Guardado correctamente.'; cancelEdit(); await loadProducts() } }catch(e){ errorMessage.value=e?.message||'No se pudo guardar.' } }
-async function handleImportExcel(){ try{ clearMessages(); const r=await window.posAPI.importProductsFromExcel(); if(r?.success) { message.value=`Importado. Nuevos:${r.created} Actualizados:${r.updated}`; await loadProducts() } }catch(e){ errorMessage.value=e?.message||'Error importando.' } }
+async function handleSaveProduct(){ try{ clearMessages(); let r=null; const payload=payloadFromForm(); if(editingId.value){ r=form.product_type==='single' ? await window.posAPI.updateSingle({ id:editingId.value, ...payload }) : await window.posAPI.updateProduct({ id:editingId.value, ...payload }) } else { r=form.product_type==='single' ? await window.posAPI.createSingle(payload) : await window.posAPI.createProduct(payload) } if(r?.success){ message.value='Guardado correctamente.'; cancelEdit(); await Promise.all([loadProducts(), loadCatalogOptions()]) } }catch(e){ errorMessage.value=e?.message||'No se pudo guardar.' } }
+async function handleImportExcel(){ try{ clearMessages(); const r=await window.posAPI.importProductsFromExcel(); if(r?.success) { message.value=`Importado. Nuevos:${r.created} Actualizados:${r.updated}`; await Promise.all([loadProducts(), loadCatalogOptions()]) } }catch(e){ errorMessage.value=e?.message||'Error importando.' } }
 async function handleExportTemplate(){ try{ clearMessages(); const r=await window.posAPI.exportProductTemplate(); if(r?.success) message.value=`Plantilla: ${r.filePath}` }catch(e){ errorMessage.value=e?.message||'Error exportando.' } }
-async function handleDeactivateProduct(p){ if(!window.confirm(`Desactivar ${p.name}?`)) return; try{ await window.posAPI.deactivateProduct(p.id); await loadProducts() }catch(e){ errorMessage.value=e?.message||'Error desactivando.' } }
-async function handleReactivateProduct(p){ if(!window.confirm(`Reactivar ${p.name}?`)) return; try{ await window.posAPI.reactivateProduct(p.id); await loadProducts() }catch(e){ errorMessage.value=e?.message||'Error reactivando.' } }
+async function handleDeactivateProduct(p){ if(!window.confirm(`Desactivar ${p.name}?`)) return; try{ await window.posAPI.deactivateProduct(p.id); await Promise.all([loadProducts(), loadCatalogOptions()]) }catch(e){ errorMessage.value=e?.message||'Error desactivando.' } }
+async function handleDeleteProduct(p){ if(!window.confirm(`Eliminar ${p.name}? Esta accion no se puede deshacer.`)) return; try{ clearMessages(); await window.posAPI.deleteProduct({ id:p.id }); message.value='Producto eliminado.'; await Promise.all([loadProducts(), loadCatalogOptions()]); if(editingId.value===p.id) cancelEdit() }catch(e){ errorMessage.value=e?.message||'Error eliminando.' } }
+async function handleReactivateProduct(p){ if(!window.confirm(`Reactivar ${p.name}?`)) return; try{ await window.posAPI.reactivateProduct(p.id); await Promise.all([loadProducts(), loadCatalogOptions()]) }catch(e){ errorMessage.value=e?.message||'Error reactivando.' } }
 async function handleUpdateSinglePrice(p=null){ try{ clearMessages(); const id=Number(p?.id||editingId.value||0); if(!id) throw new Error('Selecciona un single.'); const r=await window.posAPI.updateSingleStarCityPrice({ productId:id }); if(r?.success){ message.value='SCG actualizado.'; await loadProducts(); if(editingId.value===id) await selectProduct(r.product) } }catch(e){ errorMessage.value=e?.message||'Error SCG.' } }
 async function handleRecalculateSinglePrice(p=null){ try{ clearMessages(); const id=Number(p?.id||editingId.value||0); if(!id) throw new Error('Selecciona un single.'); const r=await window.posAPI.recalculateSingleSalePrice({ productId:id }); if(r?.success){ message.value=`Precio recalculado ${formatPrice(r.salePriceMxn)}`; await loadProducts(); if(editingId.value===id) await selectProduct(r.product) } }catch(e){ errorMessage.value=e?.message||'Error recalculo.' } }
 async function handleBatchUpdateSingles(){ try{ clearMessages(); const r=await window.posAPI.updateSingleStarCityPricesBatch({}); if(r?.success){ message.value=`Lote total:${r.total} ok:${r.updated} fail:${r.failed}`; await loadProducts() } }catch(e){ errorMessage.value=e?.message||'Error lote.' } }
@@ -422,7 +439,7 @@ async function handleImportStarCityUrl(){
   }
 }
 async function applyLinkResult(r){ try{ form.starcity_url=r.url||''; form.starcity_variant_key=r.variantKey||''; form.starcity_price_usd=Number(r.priceUsd||0); form.starcity_last_sync=new Date().toISOString(); if(editingId.value){ await window.posAPI.linkSingleStarCity({ productId:Number(editingId.value), url:r.url, variantKey:r.variantKey, priceUsd:Number(r.priceUsd||0) }); await loadProducts(); message.value='Vinculado.' } else { message.value='Vinculo listo, guarda producto.' } linkModal.open=false }catch(e){ errorMessage.value=e?.message||'Error vinculando.' } }
-onMounted(async()=>{ await Promise.all([loadProducts(), loadPricingConfig()]) })
+onMounted(async()=>{ await Promise.all([loadProducts(), loadPricingConfig(), loadCatalogOptions()]) })
 </script>
 
 <style scoped>

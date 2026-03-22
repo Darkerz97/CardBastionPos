@@ -3,7 +3,7 @@
     <header class="cash-header">
       <div>
         <h1>Caja</h1>
-        <p>Apertura y cierre de caja</p>
+        <p>Apertura, cierre y administracion de cierres</p>
       </div>
 
       <button class="back-btn" @click="$router.push('/')">
@@ -46,40 +46,16 @@
           <strong>${{ formatPrice(summary?.openingAmount) }}</strong>
         </div>
         <div class="summary-row">
-          <span>Ventas</span>
-          <strong>{{ summary?.totalSales || 0 }}</strong>
-        </div>
-        <div class="summary-row">
-          <span>Total vendido</span>
-          <strong>${{ formatPrice(summary?.totalSalesAmount) }}</strong>
-        </div>
-        <div class="summary-row">
-          <span>Crédito usado</span>
-          <strong>${{ formatPrice(summary?.totalCreditUsed) }}</strong>
-        </div>
-        <div class="summary-row">
-          <span>Venta bruta</span>
-          <strong>${{ formatPrice(summary?.grossSalesAmount) }}</strong>
-        </div>
-        <div class="summary-row">
           <span>Ventas en efectivo</span>
           <strong>${{ formatPrice(summary?.cashSalesAmount) }}</strong>
-        </div>
-        <div class="summary-row">
-          <span>Ventas con tarjeta</span>
-          <strong>${{ formatPrice(summary?.cardSalesAmount) }}</strong>
-        </div>
-        <div class="summary-row">
-          <span>Abonos cobrados</span>
-          <strong>{{ summary?.receivablePaymentsCount || 0 }}</strong>
         </div>
         <div class="summary-row">
           <span>Abonos en efectivo</span>
           <strong>${{ formatPrice(summary?.receivableCashAmount) }}</strong>
         </div>
         <div class="summary-row">
-          <span>Abonos con tarjeta</span>
-          <strong>${{ formatPrice(summary?.receivableCardAmount) }}</strong>
+          <span>Preventas en efectivo</span>
+          <strong>${{ formatPrice(summary?.preorderCashAmount) }}</strong>
         </div>
         <div class="summary-row total">
           <span>Efectivo esperado</span>
@@ -124,38 +100,9 @@
 
     <section v-if="closeResult" class="cash-card result-card">
       <h2>Resumen de cierre</h2>
-
-      <div class="summary-row">
-        <span>Monto inicial</span>
-        <strong>${{ formatPrice(closeResult.openingAmount) }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Ventas totales</span>
-        <strong>{{ closeResult.totalSales }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Total vendido</span>
-        <strong>${{ formatPrice(closeResult.totalSalesAmount) }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Crédito usado</span>
-        <strong>${{ formatPrice(closeResult.totalCreditUsed) }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Venta bruta</span>
-        <strong>${{ formatPrice(closeResult.grossSalesAmount) }}</strong>
-      </div>
       <div class="summary-row">
         <span>Efectivo esperado</span>
         <strong>${{ formatPrice(closeResult.expectedAmount) }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Abonos en efectivo</span>
-        <strong>${{ formatPrice(closeResult.receivableCashAmount) }}</strong>
-      </div>
-      <div class="summary-row">
-        <span>Abonos con tarjeta</span>
-        <strong>${{ formatPrice(closeResult.receivableCardAmount) }}</strong>
       </div>
       <div class="summary-row">
         <span>Efectivo contado</span>
@@ -166,27 +113,78 @@
         <strong>${{ formatPrice(closeResult.difference) }}</strong>
       </div>
     </section>
+
+    <section class="cash-card">
+      <div class="panel-head">
+        <h2>Cierres registrados</h2>
+        <span>{{ sessions.length }} sesiones</span>
+      </div>
+
+      <div v-if="sessions.length" class="sessions-list">
+        <div v-for="session in sessions" :key="session.id" class="session-row">
+          <div>
+            <strong>Caja #{{ session.id }}</strong>
+            <p>Apertura: {{ formatDate(session.openedAt) }}</p>
+            <small v-if="session.closedAt">Cierre: {{ formatDate(session.closedAt) }}</small>
+            <small v-else>Sesion abierta</small>
+          </div>
+          <div class="session-meta">
+            <span>${{ formatPrice(session.openingAmount) }} inicial</span>
+            <span>${{ formatPrice(session.expectedAmount) }} esperado</span>
+            <span>${{ formatPrice(session.closingAmount) }} contado</span>
+            <span :class="{ diff: session.difference !== 0 }">${{ formatPrice(session.difference) }} diferencia</span>
+            <div class="row-actions" v-if="session.status === 'closed'">
+              <button class="secondary-btn" @click="openEditSession(session)">Editar</button>
+              <button class="danger-btn" @click="handleDeleteSession(session)">Eliminar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-else class="empty-state">
+        No hay cierres registrados.
+      </div>
+    </section>
+
+    <div v-if="editSession.open" class="modal-backdrop" @click.self="editSession.open = false">
+      <div class="modal-card">
+        <h3>Editar cierre de caja #{{ editSession.id }}</h3>
+        <label>Efectivo contado</label>
+        <input v-model.number="editSession.closingAmount" type="number" min="0" step="0.01" class="cash-input" />
+        <label>Notas</label>
+        <textarea v-model="editSession.notes" class="cash-textarea" />
+        <div class="row-actions">
+          <button class="secondary-btn" @click="editSession.open = false">Cancelar</button>
+          <button class="primary-btn" @click="handleUpdateSession">Guardar</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const openSession = ref(null)
 const summary = ref(null)
+const sessions = ref([])
 const openingAmount = ref(0)
 const closingAmount = ref(0)
 const notes = ref('')
 const errorMessage = ref('')
 const closeResult = ref(null)
+const editSession = reactive({
+  open: false,
+  id: null,
+  closingAmount: 0,
+  notes: '',
+})
 
 function formatPrice(value) {
   return Number(value || 0).toFixed(2)
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return value ? new Date(value).toLocaleString() : ''
 }
 
 const predictedDifference = computed(() => {
@@ -196,15 +194,20 @@ const predictedDifference = computed(() => {
 
 async function loadCashState() {
   errorMessage.value = ''
-  openSession.value = await window.posAPI.getOpenCashSession()
-  summary.value = await window.posAPI.getCurrentCashSummary()
+  const [session, currentSummary, sessionList] = await Promise.all([
+    window.posAPI.getOpenCashSession(),
+    window.posAPI.getCurrentCashSummary(),
+    window.posAPI.getCashSessions(),
+  ])
+  openSession.value = session
+  summary.value = currentSummary
+  sessions.value = sessionList || []
 }
 
 async function handleOpenSession() {
   try {
     errorMessage.value = ''
     closeResult.value = null
-
     await window.posAPI.openCashSession(Number(openingAmount.value || 0))
     await loadCashState()
   } catch (error) {
@@ -215,7 +218,6 @@ async function handleOpenSession() {
 async function handleCloseSession() {
   try {
     errorMessage.value = ''
-
     const result = await window.posAPI.closeCashSession({
       closingAmount: Number(closingAmount.value || 0),
       notes: String(notes.value || ''),
@@ -232,6 +234,40 @@ async function handleCloseSession() {
   }
 }
 
+function openEditSession(session) {
+  editSession.open = true
+  editSession.id = session.id
+  editSession.closingAmount = Number(session.closingAmount || 0)
+  editSession.notes = String(session.notes || '')
+}
+
+async function handleUpdateSession() {
+  try {
+    errorMessage.value = ''
+    await window.posAPI.updateCashSession({
+      id: editSession.id,
+      closingAmount: Number(editSession.closingAmount || 0),
+      notes: editSession.notes,
+    })
+    editSession.open = false
+    await loadCashState()
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo actualizar el cierre.'
+  }
+}
+
+async function handleDeleteSession(session) {
+  if (!window.confirm(`Eliminar cierre de caja #${session.id}?`)) return
+
+  try {
+    errorMessage.value = ''
+    await window.posAPI.deleteCashSession({ id: session.id })
+    await loadCashState()
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo eliminar el cierre.'
+  }
+}
+
 onMounted(async () => {
   await loadCashState()
 })
@@ -245,31 +281,59 @@ onMounted(async () => {
   padding: 20px;
 }
 
-.cash-header {
+.cash-header,
+.panel-head,
+.row-actions {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+}
+
+.cash-header {
   margin-bottom: 20px;
 }
 
-.cash-header h1 {
+.cash-header h1,
+.cash-card h2 {
   margin: 0;
   color: #f2b138;
 }
 
 .cash-header p {
-  margin: 6px 0 0 0;
+  margin: 6px 0 0;
   color: #bcbcbc;
 }
 
-.back-btn {
+.back-btn,
+.primary-btn,
+.secondary-btn,
+.danger-btn {
   border: none;
-  border-radius: 12px;
-  padding: 12px 16px;
-  background: #f29a2e;
-  color: #111;
+  border-radius: 14px;
+  padding: 14px 16px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.back-btn {
+  background: #f29a2e;
+  color: #111;
+}
+
+.primary-btn {
+  background: #22c55e;
+  color: white;
+}
+
+.secondary-btn {
+  background: #2563eb;
+  color: white;
+}
+
+.danger-btn {
+  background: #dc2626;
+  color: white;
 }
 
 .cash-grid {
@@ -278,17 +342,13 @@ onMounted(async () => {
   gap: 20px;
 }
 
-.cash-card {
+.cash-card,
+.modal-card {
   background: #232323;
   border: 1px solid #323232;
   border-radius: 18px;
   padding: 20px;
   margin-bottom: 20px;
-}
-
-.cash-card h2 {
-  margin-top: 0;
-  color: #f2b138;
 }
 
 .cash-input,
@@ -322,27 +382,6 @@ onMounted(async () => {
   color: #f2b138;
 }
 
-.primary-btn,
-.danger-btn {
-  width: 100%;
-  border: none;
-  border-radius: 14px;
-  padding: 16px;
-  font-size: 17px;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.primary-btn {
-  background: #22c55e;
-  color: white;
-}
-
-.danger-btn {
-  background: #dc2626;
-  color: white;
-}
-
 .error-box {
   margin-bottom: 16px;
   padding: 12px;
@@ -353,5 +392,73 @@ onMounted(async () => {
 
 .result-card {
   border-color: #166534;
+}
+
+.sessions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.session-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #2c2c2c;
+}
+
+.session-row p,
+.session-row small {
+  display: block;
+  margin: 4px 0 0;
+  color: #d4d4d8;
+}
+
+.session-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-end;
+}
+
+.diff {
+  color: #f59e0b;
+}
+
+.empty-state {
+  color: #bcbcbc;
+  padding: 20px 0;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.modal-card {
+  width: min(520px, 100%);
+}
+
+@media (max-width: 900px) {
+  .cash-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .session-row,
+  .row-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .session-meta {
+    align-items: stretch;
+  }
 }
 </style>

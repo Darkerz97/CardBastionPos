@@ -1,5 +1,7 @@
 const { getDb, getDatabasePath } = require('./db.cjs')
 const { schemaStatements } = require('./schema.cjs')
+const { hashPin } = require('../auth/helpers.cjs')
+const { WINDOW_DEFINITIONS } = require('../auth/permissions.cjs')
 
 function seedProducts(db) {
   const countRow = db.prepare('SELECT COUNT(*) as total FROM products').get()
@@ -52,11 +54,86 @@ function initializeDatabase() {
     )
   `).run()
 
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT NOT NULL UNIQUE,
+      display_name TEXT NOT NULL,
+      pin_hash TEXT NOT NULL,
+      is_admin INTEGER NOT NULL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS user_window_permissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      view_key TEXT NOT NULL,
+      can_access INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(user_id, view_key),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      username TEXT,
+      display_name TEXT,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      action TEXT NOT NULL,
+      description TEXT,
+      payload_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+
   try {
     db.prepare(`ALTER TABLE sales ADD COLUMN customer_id INTEGER`).run()
     console.log('Columna customer_id agregada a sales')
   } catch (error) {
     console.log('customer_id ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN created_by_user_id INTEGER`).run()
+    console.log('Columna created_by_user_id agregada a sales')
+  } catch (error) {
+    console.log('created_by_user_id ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN updated_at DATETIME`).run()
+    console.log('Columna updated_at agregada a sales')
+  } catch (error) {
+    console.log('updated_at ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN updated_by_user_id INTEGER`).run()
+    console.log('Columna updated_by_user_id agregada a sales')
+  } catch (error) {
+    console.log('updated_by_user_id ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN deleted_at DATETIME`).run()
+    console.log('Columna deleted_at agregada a sales')
+  } catch (error) {
+    console.log('deleted_at ya existe en sales')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN deleted_by_user_id INTEGER`).run()
+    console.log('Columna deleted_by_user_id agregada a sales')
+  } catch (error) {
+    console.log('deleted_by_user_id ya existe en sales')
   }
 
   try {
@@ -136,6 +213,167 @@ function initializeDatabase() {
     console.log('updated_at ya existe en products')
   }
 
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN opened_by_user_id INTEGER`).run()
+    console.log('Columna opened_by_user_id agregada a cash_sessions')
+  } catch (error) {
+    console.log('opened_by_user_id ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN closed_by_user_id INTEGER`).run()
+    console.log('Columna closed_by_user_id agregada a cash_sessions')
+  } catch (error) {
+    console.log('closed_by_user_id ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN updated_at DATETIME`).run()
+    console.log('Columna updated_at agregada a cash_sessions')
+  } catch (error) {
+    console.log('updated_at ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN updated_by_user_id INTEGER`).run()
+    console.log('Columna updated_by_user_id agregada a cash_sessions')
+  } catch (error) {
+    console.log('updated_by_user_id ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN deleted_at DATETIME`).run()
+    console.log('Columna deleted_at agregada a cash_sessions')
+  } catch (error) {
+    console.log('deleted_at ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE cash_sessions ADD COLUMN deleted_by_user_id INTEGER`).run()
+    console.log('Columna deleted_by_user_id agregada a cash_sessions')
+  } catch (error) {
+    console.log('deleted_by_user_id ya existe en cash_sessions')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN product_type TEXT DEFAULT 'normal'`).run()
+    console.log('Columna product_type agregada a products')
+  } catch (error) {
+    console.log('product_type ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN game TEXT`).run()
+    console.log('Columna game agregada a products')
+  } catch (error) {
+    console.log('game ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN card_name TEXT`).run()
+    console.log('Columna card_name agregada a products')
+  } catch (error) {
+    console.log('card_name ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN set_name TEXT`).run()
+    console.log('Columna set_name agregada a products')
+  } catch (error) {
+    console.log('set_name ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN set_code TEXT`).run()
+    console.log('Columna set_code agregada a products')
+  } catch (error) {
+    console.log('set_code ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN collector_number TEXT`).run()
+    console.log('Columna collector_number agregada a products')
+  } catch (error) {
+    console.log('collector_number ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN finish TEXT`).run()
+    console.log('Columna finish agregada a products')
+  } catch (error) {
+    console.log('finish ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN language TEXT`).run()
+    console.log('Columna language agregada a products')
+  } catch (error) {
+    console.log('language ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN card_condition TEXT`).run()
+    console.log('Columna card_condition agregada a products')
+  } catch (error) {
+    console.log('card_condition ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN scryfall_id TEXT`).run()
+    console.log('Columna scryfall_id agregada a products')
+  } catch (error) {
+    console.log('scryfall_id ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN starcity_url TEXT`).run()
+    console.log('Columna starcity_url agregada a products')
+  } catch (error) {
+    console.log('starcity_url ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN starcity_variant_key TEXT`).run()
+    console.log('Columna starcity_variant_key agregada a products')
+  } catch (error) {
+    console.log('starcity_variant_key ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN starcity_price_usd REAL DEFAULT 0`).run()
+    console.log('Columna starcity_price_usd agregada a products')
+  } catch (error) {
+    console.log('starcity_price_usd ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN starcity_last_sync DATETIME`).run()
+    console.log('Columna starcity_last_sync agregada a products')
+  } catch (error) {
+    console.log('starcity_last_sync ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN pricing_mode TEXT DEFAULT 'manual'`).run()
+    console.log('Columna pricing_mode agregada a products')
+  } catch (error) {
+    console.log('pricing_mode ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN pricing_formula_type TEXT`).run()
+    console.log('Columna pricing_formula_type agregada a products')
+  } catch (error) {
+    console.log('pricing_formula_type ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN pricing_formula_value REAL DEFAULT 0`).run()
+    console.log('Columna pricing_formula_value agregada a products')
+  } catch (error) {
+    console.log('pricing_formula_value ya existe en products')
+  }
+
   db.prepare(`
     CREATE TABLE IF NOT EXISTS customer_credit_movements (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -146,6 +384,7 @@ function initializeDatabase() {
       reason TEXT,
       reference_type TEXT,
       reference_id INTEGER,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run()
@@ -161,7 +400,23 @@ function initializeDatabase() {
       reference_type TEXT,
       reference_id INTEGER,
       notes TEXT,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS single_market_prices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      product_id INTEGER NOT NULL,
+      source TEXT NOT NULL DEFAULT 'starcity',
+      source_url TEXT,
+      source_variant_key TEXT,
+      currency TEXT NOT NULL DEFAULT 'USD',
+      price REAL NOT NULL DEFAULT 0,
+      last_checked_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      raw_payload TEXT,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     )
   `).run()
 
@@ -174,6 +429,7 @@ function initializeDatabase() {
       payment_method TEXT NOT NULL,
       notes TEXT,
       is_initial INTEGER NOT NULL DEFAULT 0,
+      user_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (sale_id) REFERENCES sales(id) ON DELETE CASCADE,
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
@@ -185,6 +441,34 @@ function initializeDatabase() {
     console.log('Columna is_initial agregada a sale_payments')
   } catch (error) {
     console.log('is_initial ya existe en sale_payments')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE customer_credit_movements ADD COLUMN user_id INTEGER`).run()
+    console.log('Columna user_id agregada a customer_credit_movements')
+  } catch (error) {
+    console.log('user_id ya existe en customer_credit_movements')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE inventory_movements ADD COLUMN user_id INTEGER`).run()
+    console.log('Columna user_id agregada a inventory_movements')
+  } catch (error) {
+    console.log('user_id ya existe en inventory_movements')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sale_payments ADD COLUMN user_id INTEGER`).run()
+    console.log('Columna user_id agregada a sale_payments')
+  } catch (error) {
+    console.log('user_id ya existe en sale_payments')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE sales ADD COLUMN preorder_id INTEGER`).run()
+    console.log('Columna preorder_id agregada a sales')
+  } catch (error) {
+    console.log('preorder_id ya existe en sales')
   }
 
   // Backfill seguro para ventas existentes antes de cuentas por cobrar.
@@ -221,6 +505,88 @@ function initializeDatabase() {
       completed_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS preorders (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preorder_number TEXT UNIQUE,
+      customer_id INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'active',
+      total_amount REAL NOT NULL DEFAULT 0,
+      amount_paid REAL NOT NULL DEFAULT 0,
+      amount_due REAL NOT NULL DEFAULT 0,
+      currency TEXT DEFAULT 'MXN',
+      due_date DATETIME,
+      release_date DATETIME,
+      notes TEXT,
+      linked_sale_id INTEGER,
+      email_sent_created INTEGER DEFAULT 0,
+      email_sent_paid INTEGER DEFAULT 0,
+      email_sent_fulfilled INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+      FOREIGN KEY (linked_sale_id) REFERENCES sales(id) ON DELETE SET NULL
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS preorder_items (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preorder_id INTEGER NOT NULL,
+      product_id INTEGER,
+      product_name TEXT NOT NULL,
+      sku TEXT,
+      quantity REAL NOT NULL DEFAULT 1,
+      unit_price REAL NOT NULL DEFAULT 0,
+      line_total REAL NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (preorder_id) REFERENCES preorders(id) ON DELETE CASCADE,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS preorder_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preorder_id INTEGER NOT NULL,
+      customer_id INTEGER NOT NULL,
+      amount REAL NOT NULL,
+      payment_method TEXT NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (preorder_id) REFERENCES preorders(id) ON DELETE CASCADE,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS preorder_status_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      preorder_id INTEGER NOT NULL,
+      old_status TEXT,
+      new_status TEXT NOT NULL,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (preorder_id) REFERENCES preorders(id) ON DELETE CASCADE
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS email_notifications_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      email_type TEXT NOT NULL,
+      recipient_email TEXT NOT NULL,
+      subject TEXT NOT NULL,
+      body TEXT NOT NULL,
+      status TEXT NOT NULL,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run()
 
@@ -288,6 +654,40 @@ function initializeDatabase() {
   `).run()
 
   seedProducts(db)
+
+  const adminExists = db.prepare(`
+    SELECT id
+    FROM users
+    WHERE username = 'admin'
+    LIMIT 1
+  `).get()
+
+  if (!adminExists) {
+    const adminResult = db.prepare(`
+      INSERT INTO users (
+        username,
+        display_name,
+        pin_hash,
+        is_admin,
+        active
+      ) VALUES (?, ?, ?, 1, 1)
+    `).run('admin', 'Administrador', hashPin('1234'))
+
+    const adminId = Number(adminResult.lastInsertRowid)
+    const insertPermission = db.prepare(`
+      INSERT OR REPLACE INTO user_window_permissions (
+        user_id,
+        view_key,
+        can_access
+      ) VALUES (?, ?, 1)
+    `)
+
+    for (const windowDef of WINDOW_DEFINITIONS) {
+      insertPermission.run(adminId, windowDef.key)
+    }
+
+    console.log('Usuario administrador inicial creado: admin / 1234')
+  }
 }
 
 module.exports = { initializeDatabase }
