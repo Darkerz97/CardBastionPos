@@ -33,7 +33,7 @@
             Consultar
           </button>
           <button class="secondary-btn" @click="handleExportCsv">
-            Exportar CSV ventas
+            Exportar Excel completo
           </button>
         </div>
       </div>
@@ -125,6 +125,44 @@
       <div class="summary-card inventory-card">
         <span>Productos bajo minimo</span>
         <strong>{{ inventoryReport.summary.lowStockProductsCount }}</strong>
+      </div>
+    </section>
+
+    <section class="summary-grid inventory" v-if="singlesReport?.summary">
+      <div class="summary-card inventory-card">
+        <span>Singles activos</span>
+        <strong>{{ singlesReport.summary.totalSingles }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Singles SCG desactualizados</span>
+        <strong>{{ singlesReport.summary.outdatedCount }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Singles sin vinculo SCG</span>
+        <strong>{{ singlesReport.summary.withoutLinkCount }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Valor venta singles</span>
+        <strong>${{ formatMoney(singlesReport.summary.totalSaleValue) }}</strong>
+      </div>
+    </section>
+
+    <section class="summary-grid inventory" v-if="preorderReport?.summary">
+      <div class="summary-card inventory-card">
+        <span>Preventas activas/parciales</span>
+        <strong>{{ (preorderReport.summary.activePreorders || 0) + (preorderReport.summary.partialPreorders || 0) }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Total preventas</span>
+        <strong>${{ formatMoney(preorderReport.summary.totalAmount || 0) }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Total abonado preventas</span>
+        <strong>${{ formatMoney(preorderReport.summary.totalPaid || 0) }}</strong>
+      </div>
+      <div class="summary-card inventory-card">
+        <span>Pendiente preventas</span>
+        <strong>${{ formatMoney(preorderReport.summary.totalDue || 0) }}</strong>
       </div>
     </section>
 
@@ -372,6 +410,64 @@
       </div>
     </section>
 
+    <section class="content-grid" v-if="singlesReport">
+      <div class="card">
+        <div class="card-header">
+          <h2>Singles SCG desactualizados</h2>
+          <span>{{ singlesReport.outdatedSingles.length }}</span>
+        </div>
+        <div v-if="singlesReport.outdatedSingles.length" class="table-wrap">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Carta</th>
+                <th>Set</th>
+                <th>Precio SCG USD</th>
+                <th>Ult sync</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in singlesReport.outdatedSingles" :key="row.id">
+                <td>{{ row.name }}</td>
+                <td>{{ row.setName || 'N/D' }}</td>
+                <td>${{ formatMoney(row.starcityPriceUsd) }}</td>
+                <td>{{ formatDate(row.starcityLastSync) || 'Nunca' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state">No hay singles desactualizados.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <h2>Top singles vendidos</h2>
+          <span>{{ singlesReport.topSinglesSold.length }}</span>
+        </div>
+        <div v-if="singlesReport.topSinglesSold.length" class="table-wrap">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Carta</th>
+                <th>Set</th>
+                <th>Unidades</th>
+                <th>Ventas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in singlesReport.topSinglesSold" :key="row.id">
+                <td>{{ row.name }}</td>
+                <td>{{ row.setName || 'N/D' }}</td>
+                <td>{{ row.totalQty }}</td>
+                <td>${{ formatMoney(row.totalSales) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div v-else class="empty-state">No hay ventas de singles.</div>
+      </div>
+    </section>
+
     <section class="card" v-if="report">
       <div class="card-header">
         <h2>Transacciones</h2>
@@ -422,6 +518,8 @@ import { onMounted, ref } from 'vue'
 
 const report = ref(null)
 const inventoryReport = ref(null)
+const singlesReport = ref(null)
+const preorderReport = ref(null)
 const message = ref('')
 const errorMessage = ref('')
 
@@ -454,7 +552,7 @@ async function loadReport() {
   try {
     clearMessages()
 
-    const [salesData, inventoryData] = await Promise.all([
+    const [salesData, inventoryData, singlesData, preorderData] = await Promise.all([
       window.posAPI.getSalesDashboard({
         dateFrom: dateFrom.value,
         dateTo: dateTo.value,
@@ -462,10 +560,19 @@ async function loadReport() {
       window.posAPI.getInventorySummary({
         inactiveDays: Number(inactiveDays.value || 30),
       }),
+      window.posAPI.getSinglesDashboard({
+        outdatedDays: Number(inactiveDays.value || 30),
+      }),
+      window.posAPI.getPreordersDashboard({
+        dateFrom: dateFrom.value,
+        dateTo: dateTo.value,
+      }),
     ])
 
     report.value = salesData
     inventoryReport.value = inventoryData
+    singlesReport.value = singlesData
+    preorderReport.value = preorderData
   } catch (error) {
     console.error(error)
     errorMessage.value = error?.message || 'No se pudo cargar el reporte.'
@@ -484,7 +591,7 @@ async function handleExportCsv() {
     if (result?.canceled) return
 
     if (result?.success) {
-      message.value = `Reporte exportado en: ${result.filePath}`
+      message.value = `Reporte completo exportado en: ${result.filePath}`
     }
   } catch (error) {
     console.error(error)

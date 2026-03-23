@@ -20,6 +20,13 @@ function getDb() {
   return dbInstance
 }
 
+function closeDb() {
+  if (!dbInstance) return
+
+  dbInstance.close()
+  dbInstance = null
+}
+
 /**
 
  */
@@ -60,6 +67,6 @@ function initializeDatabase() {
 
   console.log('📦 Tablas existentes AHORA:', tables)
 }
-module.exports = { getDb, getDatabasePath, initializeDatabase }
+module.exports = { getDb, getDatabasePath, initializeDatabase, closeDb }
 
 

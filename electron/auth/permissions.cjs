@@ -5,6 +5,7 @@ const WINDOW_DEFINITIONS = [
   { key: 'products', label: 'Productos' },
   { key: 'backup', label: 'Respaldos' },
   { key: 'reports', label: 'Reportes' },
+  { key: 'settings', label: 'Configuracion del POS' },
   { key: 'customers', label: 'Clientes' },
   { key: 'customer-history', label: 'Historial por cliente' },
   { key: 'receivables', label: 'Cuentas por cobrar' },

@@ -436,6 +436,21 @@ function initializeDatabase() {
     )
   `).run()
 
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS cash_movements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      cash_session_id INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      amount REAL NOT NULL DEFAULT 0,
+      reason TEXT NOT NULL,
+      signature TEXT NOT NULL,
+      notes TEXT,
+      created_by_user_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (cash_session_id) REFERENCES cash_sessions(id) ON DELETE CASCADE
+    )
+  `).run()
+
   try {
     db.prepare(`ALTER TABLE sale_payments ADD COLUMN is_initial INTEGER NOT NULL DEFAULT 0`).run()
     console.log('Columna is_initial agregada a sale_payments')

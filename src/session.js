@@ -38,6 +38,7 @@ export function getFirstAllowedRoute() {
     { name: 'preorders', path: '/preorders' },
     { name: 'tournaments', path: '/tournaments' },
     { name: 'reports', path: '/reports' },
+    { name: 'settings', path: '/settings' },
     { name: 'backup', path: '/backup' },
     { name: 'users', path: '/users' },
   ]

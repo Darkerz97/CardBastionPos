@@ -91,12 +91,23 @@ function getSessionPreorderPaymentsSummary(db, openedAt, closedAt = null) {
   `).get(...getRangeParams(openedAt, closedAt))
 }
 
-function buildCashSummary(openSession, salesSummary, receivablePaymentsSummary, preorderPaymentsSummary, closingAmount = null) {
+function getSessionCashMovementsSummary(db, sessionId) {
+  return db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type = 'withdrawal' THEN amount ELSE 0 END), 0) as withdrawal_total_amount,
+      COUNT(*) as movements_count
+    FROM cash_movements
+    WHERE cash_session_id = ?
+  `).get(Number(sessionId || 0))
+}
+
+function buildCashSummary(openSession, salesSummary, receivablePaymentsSummary, preorderPaymentsSummary, cashMovementsSummary, closingAmount = null) {
   const expectedAmount =
     Number(openSession.opening_amount || 0) +
     Number(salesSummary.cash_sales_amount || 0) +
     Number(receivablePaymentsSummary.receivable_cash_amount || 0) +
-    Number(preorderPaymentsSummary.preorder_cash_amount || 0)
+    Number(preorderPaymentsSummary.preorder_cash_amount || 0) -
+    Number(cashMovementsSummary.withdrawal_total_amount || 0)
 
   const difference = closingAmount === null
     ? null
@@ -124,6 +135,8 @@ function buildCashSummary(openSession, salesSummary, receivablePaymentsSummary, 
     preorderCashAmount: Number(preorderPaymentsSummary.preorder_cash_amount || 0),
     preorderCardAmount: Number(preorderPaymentsSummary.preorder_card_amount || 0),
     preorderOtherAmount: Number(preorderPaymentsSummary.preorder_other_amount || 0),
+    cashMovementsCount: Number(cashMovementsSummary.movements_count || 0),
+    withdrawalTotalAmount: Number(cashMovementsSummary.withdrawal_total_amount || 0),
     expectedAmount: Number(expectedAmount || 0),
     closingAmount: closingAmount === null ? null : Number(closingAmount || 0),
     difference: difference === null ? null : Number(difference || 0),
@@ -135,12 +148,14 @@ function getSummaryForSession(db, session, closingAmount = null) {
   const salesSummary = getSessionSalesSummary(db, session.opened_at, session.closed_at || null)
   const receivablePaymentsSummary = getSessionReceivablePaymentsSummary(db, session.opened_at, session.closed_at || null)
   const preorderPaymentsSummary = getSessionPreorderPaymentsSummary(db, session.opened_at, session.closed_at || null)
+  const cashMovementsSummary = getSessionCashMovementsSummary(db, session.id)
 
   return buildCashSummary(
     session,
     salesSummary,
     receivablePaymentsSummary,
     preorderPaymentsSummary,
+    cashMovementsSummary,
     closingAmount
   )
 }
@@ -326,6 +341,131 @@ function registerCashHandlers() {
       notes: String(row.notes || ''),
       status: String(row.status || ''),
     }))
+  })
+
+  ipcMain.handle('cash:listMovements', () => {
+    requirePermission('cash', 'consultar movimientos de caja')
+    const db = getDb()
+
+    const openSession = db.prepare(`
+      SELECT id
+      FROM cash_sessions
+      WHERE status = 'open'
+        AND deleted_at IS NULL
+      ORDER BY id DESC
+      LIMIT 1
+    `).get()
+
+    if (!openSession) return []
+
+    return db.prepare(`
+      SELECT
+        cm.id,
+        cm.cash_session_id,
+        cm.type,
+        cm.amount,
+        cm.reason,
+        cm.signature,
+        cm.notes,
+        cm.created_at,
+        COALESCE(u.display_name, u.username, '') as created_by
+      FROM cash_movements cm
+      LEFT JOIN users u ON u.id = cm.created_by_user_id
+      WHERE cm.cash_session_id = ?
+      ORDER BY cm.created_at DESC, cm.id DESC
+    `).all(Number(openSession.id)).map((row) => ({
+      id: Number(row.id),
+      cashSessionId: Number(row.cash_session_id),
+      type: String(row.type || ''),
+      amount: Number(row.amount || 0),
+      reason: String(row.reason || ''),
+      signature: String(row.signature || ''),
+      notes: String(row.notes || ''),
+      createdAt: String(row.created_at || ''),
+      createdBy: String(row.created_by || ''),
+    }))
+  })
+
+  ipcMain.handle('cash:addWithdrawal', (event, payload) => {
+    const db = getDb()
+    const actor = getAuditActor()
+    requirePermission('cash', 'registrar retiro de efectivo')
+
+    const amount = Number(payload?.amount || 0)
+    const reason = String(payload?.reason || '').trim()
+    const signature = String(payload?.signature || '').trim()
+    const notes = String(payload?.notes || '').trim()
+
+    if (amount <= 0) {
+      throw new Error('El retiro debe ser mayor a 0.')
+    }
+
+    if (!reason) {
+      throw new Error('Debes indicar el motivo del retiro.')
+    }
+
+    if (!signature) {
+      throw new Error('La firma es obligatoria para registrar el retiro.')
+    }
+
+    const openSession = db.prepare(`
+      SELECT *
+      FROM cash_sessions
+      WHERE status = 'open'
+        AND deleted_at IS NULL
+      ORDER BY id DESC
+      LIMIT 1
+    `).get()
+
+    if (!openSession) {
+      throw new Error('No hay una caja abierta.')
+    }
+
+    const currentSummary = getSummaryForSession(db, openSession, null)
+    if (amount > Number(currentSummary.expectedAmount || 0)) {
+      throw new Error('El retiro excede el efectivo esperado en caja.')
+    }
+
+    const result = db.prepare(`
+      INSERT INTO cash_movements (
+        cash_session_id,
+        type,
+        amount,
+        reason,
+        signature,
+        notes,
+        created_by_user_id
+      ) VALUES (?, 'withdrawal', ?, ?, ?, ?, ?)
+    `).run(
+      Number(openSession.id),
+      amount,
+      reason,
+      signature,
+      notes,
+      actor.userId || null
+    )
+
+    logAudit(db, {
+      userId: actor.userId,
+      username: actor.username,
+      displayName: actor.displayName,
+      entityType: 'cash_movement',
+      entityId: Number(result.lastInsertRowid),
+      action: 'withdrawal',
+      description: `Retiro de efectivo registrado en caja ${openSession.id}`,
+      payloadJson: {
+        cashSessionId: Number(openSession.id),
+        amount,
+        reason,
+        signature,
+      },
+    })
+
+    return {
+      success: true,
+      movementId: Number(result.lastInsertRowid),
+      summary: getSummaryForSession(db, openSession, null),
+    }
   })
 
   ipcMain.handle('cash:updateSession', (event, payload) => {

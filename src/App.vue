@@ -3,6 +3,10 @@
 
   <div v-if="!sessionState.user" class="login-shell">
     <div class="login-card">
+      <div class="login-visual">
+        <img :src="heroImage" alt="Card Bastion" class="login-hero-image" />
+      </div>
+
       <div class="login-brand">
         <h1>Card Bastion</h1>
         <p>Acceso por usuario y permisos por ventana</p>
@@ -46,6 +50,7 @@
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { sessionState, refreshSession, getFirstAllowedRoute } from './session'
+import heroImage from './assets/hero.png'
 
 const router = useRouter()
 const loginUsers = ref([])
@@ -104,18 +109,43 @@ onMounted(async () => {
 }
 
 .login-card {
-  width: min(420px, 100%);
+  width: min(980px, 100%);
+  display: grid;
+  grid-template-columns: minmax(280px, 420px) minmax(320px, 1fr);
   background: rgba(24, 24, 27, 0.94);
   border: 1px solid #3f3f46;
   border-radius: 22px;
-  padding: 28px;
+  overflow: hidden;
   color: #f4f4f5;
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  animation: loginCardIn 0.65s ease both;
+}
+
+.login-visual {
+  min-height: 520px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(242, 177, 56, 0.34), transparent 30%),
+    radial-gradient(circle at 80% 30%, rgba(37, 99, 235, 0.24), transparent 36%),
+    linear-gradient(160deg, #111827 0%, #172033 50%, #0f172a 100%);
+}
+
+.login-hero-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.login-brand,
+.login-form {
+  padding-left: 28px;
+  padding-right: 28px;
 }
 
 .login-brand h1 {
-  margin: 0;
+  margin: 28px 0 0;
   color: #f2b138;
+  font-size: 36px;
 }
 
 .login-brand p {
@@ -127,6 +157,7 @@ onMounted(async () => {
   display: grid;
   gap: 12px;
   margin-top: 22px;
+  padding-bottom: 28px;
 }
 
 .input {
@@ -163,5 +194,32 @@ onMounted(async () => {
   margin: 4px 0 0;
   font-size: 13px;
   color: #d4d4d8;
+}
+
+@keyframes loginCardIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 840px) {
+  .login-card {
+    grid-template-columns: 1fr;
+  }
+
+  .login-visual {
+    min-height: 220px;
+  }
+
+  .login-brand h1 {
+    margin-top: 22px;
+    font-size: 30px;
+  }
 }
 </style>

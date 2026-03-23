@@ -66,6 +66,8 @@ contextBridge.exposeInMainWorld('posAPI', {
   getCurrentCashSummary: () => ipcRenderer.invoke('cash:getCurrentSummary'),
   closeCashSession: (payload) => ipcRenderer.invoke('cash:closeSession', payload),
   getCashSessions: () => ipcRenderer.invoke('cash:listSessions'),
+  getCashMovements: () => ipcRenderer.invoke('cash:listMovements'),
+  addCashWithdrawal: (payload) => ipcRenderer.invoke('cash:addWithdrawal', payload),
   updateCashSession: (payload) => ipcRenderer.invoke('cash:updateSession', payload),
   deleteCashSession: (payload) => ipcRenderer.invoke('cash:deleteSession', payload),
 
@@ -83,6 +85,8 @@ contextBridge.exposeInMainWorld('posAPI', {
   printTicket: (payload) => ipcRenderer.invoke('print:ticket', payload),
   getPrintTicketsEnabled: () => ipcRenderer.invoke('settings:getPrintTicketsEnabled'),
   setPrintTicketsEnabled: (enabled) => ipcRenderer.invoke('settings:setPrintTicketsEnabled', enabled),
+  getPosCustomization: () => ipcRenderer.invoke('settings:getPosCustomization'),
+  updatePosCustomization: (payload) => ipcRenderer.invoke('settings:updatePosCustomization', payload),
 
   getPrintSettings: async () => {
     const enabled = await ipcRenderer.invoke('settings:getPrintTicketsEnabled')

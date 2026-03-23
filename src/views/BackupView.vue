@@ -18,7 +18,7 @@
         <div v-if="dbInfo" class="info-block">
           <div class="info-row">
             <span>Existe</span>
-            <strong>{{ dbInfo.exists ? 'Sí' : 'No' }}</strong>
+            <strong>{{ dbInfo.exists ? 'Si' : 'No' }}</strong>
           </div>
 
           <div class="info-row">
@@ -27,20 +27,25 @@
           </div>
 
           <div v-if="dbInfo.exists" class="info-row">
-            <span>Tamaño</span>
+            <span>Tamano</span>
             <strong>{{ formatBytes(dbInfo.size) }}</strong>
           </div>
 
           <div v-if="dbInfo.exists" class="info-row">
-            <span>Última modificación</span>
+            <span>Ultima modificacion</span>
             <strong>{{ formatDate(dbInfo.modifiedAt) }}</strong>
+          </div>
+
+          <div class="info-row">
+            <span>Imagenes de productos</span>
+            <strong>{{ dbInfo.imagesCount || 0 }}</strong>
           </div>
         </div>
       </div>
 
       <div class="card">
-        <h2>Crear respaldo</h2>
-        <p>Genera una copia manual de tu base de datos actual.</p>
+        <h2>Crear respaldo completo</h2>
+        <p>Guarda base de datos, ventas, clientes, usuarios e imagenes de productos.</p>
 
         <button class="primary-btn" @click="handleCreateBackup">
           Crear respaldo
@@ -50,7 +55,7 @@
       <div class="card danger-card">
         <h2>Restaurar respaldo</h2>
         <p>
-          Restaura una base previa. Esto reemplazará la base actual del POS.
+          Restaura un respaldo completo o un SQLite antiguo. Esto reemplazara la base actual del POS.
         </p>
 
         <button class="danger-btn" @click="handleRestoreBackup">
@@ -98,7 +103,7 @@ async function loadDbInfo() {
     dbInfo.value = await window.posAPI.getDbInfo()
   } catch (error) {
     console.error(error)
-    errorMessage.value = error?.message || 'No se pudo leer la información de la base.'
+    errorMessage.value = error?.message || 'No se pudo leer la informacion de la base.'
   }
 }
 
@@ -111,7 +116,11 @@ async function handleCreateBackup() {
     if (result?.canceled) return
 
     if (result?.success) {
-      message.value = `Respaldo guardado en: ${result.filePath}`
+      const imagesText = result?.includes?.images
+        ? ` Incluye ${result.imagesFileCount || 0} imagen(es) de producto.`
+        : ''
+
+      message.value = `Respaldo completo guardado en: ${result.filePath}.${imagesText}`
       await loadDbInfo()
     }
   } catch (error) {
@@ -122,7 +131,7 @@ async function handleCreateBackup() {
 
 async function handleRestoreBackup() {
   const confirmed = window.confirm(
-    '¿Seguro que deseas restaurar un respaldo? Esto reemplazará la base actual.'
+    'Seguro que deseas restaurar un respaldo? Esto reemplazara la base actual.'
   )
 
   if (!confirmed) return
@@ -135,7 +144,11 @@ async function handleRestoreBackup() {
     if (result?.canceled) return
 
     if (result?.success) {
-      message.value = `Respaldo restaurado desde: ${result.restoredFrom}`
+      const imagesText = result?.restoredImages
+        ? ' Tambien se restauraron las imagenes de productos.'
+        : ''
+
+      message.value = `Respaldo restaurado desde: ${result.restoredFrom}.${imagesText}`
       await loadDbInfo()
       alert('Respaldo restaurado. Reinicia la app para asegurar que todo quede recargado.')
     }

@@ -1,9 +1,10 @@
 <template>
-  <div class="pos-layout">
+  <div class="pos-layout" :style="themeVars" :class="{ compact: posCustomization.compactMode }">
     <aside class="sidebar">
       <div class="brand">
-        <h1>Card Bastion</h1>
-        <p>Point of Sale</p>
+        <img :src="posLogo" alt="Card Bastion" class="brand-logo" />
+        <h1>{{ posCustomization.storeName }}</h1>
+        <p>{{ posCustomization.posSubtitle }}</p>
         <small v-if="sessionState.user" class="session-caption">
           {{ sessionState.user.displayName }}
         </small>
@@ -16,6 +17,7 @@
         <button v-if="hasWindowAccess('products')" class="menu-btn" @click="$router.push('/products')">Productos</button>
         <button v-if="hasWindowAccess('backup')" class="menu-btn" @click="$router.push('/backup')">Respaldo</button>
         <button v-if="hasWindowAccess('reports')" class="menu-btn" @click="$router.push('/reports')">Reportes</button>
+        <button v-if="hasWindowAccess('settings')" class="menu-btn" @click="$router.push('/settings')">Configuracion</button>
         <button v-if="hasWindowAccess('customers')" class="menu-btn" @click="$router.push('/customers')">Clientes</button>
         <button v-if="hasWindowAccess('customer-history')" class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
         <button v-if="hasWindowAccess('receivables')" class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
@@ -45,6 +47,31 @@
           {{ printTicketsEnabled ? 'Tickets: ON' : 'Tickets: OFF' }}
         </button>
       </header>
+
+      <section v-if="posCustomization.showHeroBanner" class="hero-banner">
+        <div>
+          <p class="eyebrow">{{ posCustomization.heroCaption }}</p>
+          <h2>{{ posCustomization.heroTitle }}</h2>
+          <span>{{ products.length }} productos disponibles</span>
+        </div>
+
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <strong>{{ filteredProducts.length }}</strong>
+            <small>Resultados</small>
+          </div>
+
+          <div class="hero-stat">
+            <strong>{{ cart.totalItems }}</strong>
+            <small>Items en carrito</small>
+          </div>
+
+          <div class="hero-stat warning">
+            <strong>{{ lowStockCount }}</strong>
+            <small>Stock bajo</small>
+          </div>
+        </div>
+      </section>
 
       <section class="content-grid">
         <div class="products-panel">
@@ -156,11 +183,51 @@
             {{ cartMessage }}
           </div>
 
-          <div v-if="cart.items.length" class="cart-items">
+          <transition-group v-if="cart.items.length" name="cart-list" tag="div" class="cart-items">
             <div class="cart-item" v-for="item in cart.items" :key="item.id">
               <div class="cart-item-info">
                 <strong>{{ item.name }}</strong>
                 <p>{{ item.sku }}</p>
+
+                <div class="item-price-row">
+                  <span>
+                    Precio unitario:
+                    <strong>$ {{ formatPrice(item.price) }}</strong>
+                  </span>
+
+                  <button class="price-edit-btn" @click.stop="openPriceEditor(item)">
+                    {{ editingPriceId === item.id ? 'Cerrar' : 'Editar precio' }}
+                  </button>
+                </div>
+
+                <div v-if="editingPriceId === item.id" class="price-editor" @click.stop>
+                  <input
+                    v-model="editingPriceValue"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="price-editor-input"
+                    placeholder="0.00"
+                    @keydown.enter.prevent="applyItemPrice(item.id)"
+                  />
+
+                  <div class="price-editor-actions">
+                    <button class="price-save-btn" @click.stop="applyItemPrice(item.id)">
+                      Aplicar
+                    </button>
+                    <button
+                      v-if="item.customPrice"
+                      class="price-reset-btn"
+                      @click.stop="resetItemPrice(item.id)"
+                    >
+                      Restablecer
+                    </button>
+                  </div>
+
+                  <small class="price-editor-hint">
+                    Solo cambia el precio de este cobro. El producto registrado no se modifica.
+                  </small>
+                </div>
 
                 <div class="qty-controls">
                   <button @click="cart.decreaseQty(item.id)">−</button>
@@ -171,12 +238,15 @@
 
               <div class="cart-item-right">
                 <strong>$ {{ formatPrice(item.lineTotal) }}</strong>
+                <small v-if="item.customPrice" class="custom-price-badge">
+                  Precio temporal
+                </small>
                 <button class="remove-btn" @click="cart.removeItem(item.id)">
                   Quitar
                 </button>
               </div>
             </div>
-          </div>
+          </transition-group>
 
           <div v-else class="empty-cart">
             No hay productos en el carrito
@@ -257,13 +327,13 @@
 
             <label>Usar crédito</label>
             <input
-              v-model.number="creditToUse"
+              v-model="creditToUse"
               type="number"
               min="0"
               step="0.01"
               class="payment-input"
               placeholder="0.00"
-              @input="validateCredit"
+              @blur="validateCredit"
             />
 
             <button
@@ -284,13 +354,13 @@
           <div class="credit-box">
             <label>Monto pagado</label>
             <input
-              v-model.number="paymentAmount"
+              v-model="paymentAmount"
               type="number"
               min="0"
               step="0.01"
               class="payment-input"
               placeholder="0.00"
-              @input="validatePaymentAmount"
+              @blur="validatePaymentAmount"
             />
 
             <div class="summary-row" style="margin-top: 12px;">
@@ -350,6 +420,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useCartStore } from '../stores/cartStore'
 import { clearSessionState, hasWindowAccess, sessionState } from '../session'
+import heroImage from '../assets/hero.png'
 
 const products = ref([])
 const search = ref('')
@@ -371,10 +442,22 @@ const selectedCustomer = ref(null)
 const customerSearch = ref('')
 const customerResults = ref([])
 
-const creditToUse = ref(0)
-const paymentAmount = ref(0)
+const creditToUse = ref('0')
+const paymentAmount = ref('0')
 const dueDate = ref('')
 const paymentNotes = ref('')
+const editingPriceId = ref(null)
+const editingPriceValue = ref('')
+const posLogo = heroImage
+const posCustomization = ref({
+  storeName: 'Card Bastion',
+  posSubtitle: 'Point of Sale',
+  heroTitle: 'Ventas agiles con control visual y cobro flexible',
+  heroCaption: 'Panel de cobro',
+  accentColor: '#f2b138',
+  showHeroBanner: true,
+  compactMode: false,
+})
 
 async function handleCustomerSearch() {
   if (!customerSearch.value.trim()) {
@@ -389,14 +472,14 @@ function selectCustomer(customer) {
   selectedCustomer.value = customer
   customerSearch.value = customer.name
   customerResults.value = []
-  creditToUse.value = 0
+  creditToUse.value = '0'
 }
 
 function clearCustomer() {
   selectedCustomer.value = null
   customerSearch.value = ''
   customerResults.value = []
-  creditToUse.value = 0
+  creditToUse.value = '0'
 }
 
 async function resolveProductImages(list) {
@@ -428,6 +511,18 @@ const lowStockCount = computed(() => {
 function formatPrice(value) {
   return Number(value || 0).toFixed(2)
 }
+
+function parseMoneyInput(value) {
+  const normalized = String(value ?? '').trim().replace(',', '.')
+  if (!normalized) return 0
+
+  const parsed = Number(normalized)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const themeVars = computed(() => ({
+  '--accent-color': posCustomization.value?.accentColor || '#f2b138',
+}))
 
 function getProductSalePrice(product) {
   const productType = String(product?.product_type || 'normal').toLowerCase()
@@ -508,7 +603,7 @@ function increaseCartItem(productId) {
 }
 
 async function openPaymentModal() {
-  creditToUse.value = 0
+  creditToUse.value = '0'
   await checkCashStatus()
 
   if (!hasOpenCash.value) {
@@ -517,17 +612,29 @@ async function openPaymentModal() {
   }
 
   paymentMethod.value = 'cash'
-  paymentAmount.value = Number(cart.total || 0)
+  paymentAmount.value = String(Number(cart.total || 0).toFixed(2))
   dueDate.value = ''
   paymentNotes.value = ''
   saleError.value = ''
   showPaymentModal.value = true
 }
 
+async function loadPosCustomization() {
+  try {
+    const settings = await window.posAPI.getPosCustomization()
+    posCustomization.value = {
+      ...posCustomization.value,
+      ...(settings || {}),
+    }
+  } catch (error) {
+    console.error('Error cargando personalizacion del POS:', error)
+  }
+}
+
 function closePaymentModal() {
   showPaymentModal.value = false
   saleError.value = ''
-  paymentAmount.value = 0
+  paymentAmount.value = '0'
   dueDate.value = ''
   paymentNotes.value = ''
 
@@ -538,66 +645,114 @@ function closePaymentModal() {
 
 function validateCredit() {
   if (!selectedCustomer.value) {
-    creditToUse.value = 0
+    creditToUse.value = '0'
     return
   }
 
-  if (Number(creditToUse.value || 0) < 0) {
-    creditToUse.value = 0
+  let nextValue = parseMoneyInput(creditToUse.value)
+
+  if (nextValue < 0) {
+    nextValue = 0
   }
 
   const available = Number(selectedCustomer.value.store_credit || 0)
   const total = Number(cart.total || 0)
 
-  if (Number(creditToUse.value || 0) > available) {
-    creditToUse.value = available
+  if (nextValue > available) {
+    nextValue = available
   }
 
-  if (Number(creditToUse.value || 0) > total) {
-    creditToUse.value = total
+  if (nextValue > total) {
+    nextValue = total
   }
+
+  creditToUse.value = String(Number(nextValue).toFixed(2))
 
   validatePaymentAmount()
 }
 
 function applyMaxCredit() {
   if (!selectedCustomer.value) {
-    creditToUse.value = 0
+    creditToUse.value = '0'
     return
   }
 
   const available = Number(selectedCustomer.value.store_credit || 0)
   const total = Number(cart.total || 0)
-  creditToUse.value = Math.min(available, total)
+  creditToUse.value = String(Math.min(available, total).toFixed(2))
 
   validatePaymentAmount()
 }
 
 function validatePaymentAmount() {
   const remaining = Number(remainingAfterCredit.value || 0)
+  let nextValue = parseMoneyInput(paymentAmount.value)
 
-  if (Number(paymentAmount.value || 0) < 0) {
-    paymentAmount.value = 0
+  if (nextValue < 0) {
+    nextValue = 0
   }
 
-  if (Number(paymentAmount.value || 0) > remaining) {
-    paymentAmount.value = remaining
+  if (nextValue > remaining) {
+    nextValue = remaining
   }
+
+  paymentAmount.value = String(Number(nextValue).toFixed(2))
+}
+
+function openPriceEditor(item) {
+  if (editingPriceId.value === item.id) {
+    editingPriceId.value = null
+    editingPriceValue.value = ''
+    return
+  }
+
+  editingPriceId.value = item.id
+  editingPriceValue.value = String(Number(item.price || 0).toFixed(2))
+}
+
+function applyItemPrice(productId) {
+  const result = cart.setItemPrice(productId, editingPriceValue.value)
+
+  if (!result?.success) {
+    cartMessage.value = result?.message || 'No se pudo actualizar el precio.'
+    setTimeout(() => {
+      cartMessage.value = ''
+    }, 2500)
+    return
+  }
+
+  editingPriceId.value = null
+  editingPriceValue.value = ''
+}
+
+function resetItemPrice(productId) {
+  const result = cart.resetItemPrice(productId)
+
+  if (!result?.success) {
+    cartMessage.value = result?.message || 'No se pudo restablecer el precio.'
+    setTimeout(() => {
+      cartMessage.value = ''
+    }, 2500)
+    return
+  }
+
+  const item = cart.items.find((entry) => entry.id === productId)
+  editingPriceValue.value = String(Number(item?.price || 0).toFixed(2))
 }
 
 const remainingAfterCredit = computed(() => {
   const total = Number(cart.total || 0)
-  const credit = Number(creditToUse.value || 0)
+  const credit = parseMoneyInput(creditToUse.value)
   return Math.max(total - credit, 0)
 })
 
 const pendingAmount = computed(() => {
-  return Math.max(Number(remainingAfterCredit.value || 0) - Number(paymentAmount.value || 0), 0)
+  return Math.max(Number(remainingAfterCredit.value || 0) - parseMoneyInput(paymentAmount.value), 0)
 })
 
 const paymentStatusPreview = computed(() => {
   if (Number(pendingAmount.value || 0) <= 0) return 'paid'
-  if (Number(paymentAmount.value || 0) <= 0) return 'pending'
+  if (parseMoneyInput(paymentAmount.value) <= 0) return 'pending'
   return 'partial'
 })
 
@@ -643,24 +798,24 @@ async function confirmSale() {
     return
   }
 
-  if (Number(creditToUse.value || 0) > 0) {
+  if (parseMoneyInput(creditToUse.value) > 0) {
     if (!selectedCustomer.value) {
       saleError.value = 'Debes seleccionar un cliente para usar crédito.'
       return
     }
 
-    if (Number(creditToUse.value || 0) > Number(selectedCustomer.value.store_credit || 0)) {
+    if (parseMoneyInput(creditToUse.value) > Number(selectedCustomer.value.store_credit || 0)) {
       saleError.value = 'El cliente no tiene suficiente crédito disponible.'
       return
     }
 
-    if (Number(creditToUse.value || 0) > Number(cart.total || 0)) {
+    if (parseMoneyInput(creditToUse.value) > Number(cart.total || 0)) {
       saleError.value = 'No puedes usar más crédito que el total de la venta.'
       return
     }
   }
 
-  if (Number(paymentAmount.value || 0) > Number(remainingAfterCredit.value || 0)) {
+  if (parseMoneyInput(paymentAmount.value) > Number(remainingAfterCredit.value || 0)) {
     saleError.value = 'El monto pagado no puede exceder el total neto.'
     return
   }
@@ -686,11 +841,11 @@ async function confirmSale() {
       discount: 0,
       total: Number(remainingAfterCredit.value || 0),
       payment_method: paymentMethod.value,
-      cash_received: paymentMethod.value === 'cash' ? Number(paymentAmount.value || 0) : 0,
+      cash_received: paymentMethod.value === 'cash' ? parseMoneyInput(paymentAmount.value) : 0,
       change_given: 0,
       customerId: selectedCustomer.value?.id || null,
-      credit_used: Number(creditToUse.value || 0),
-      amount_paid: Number(paymentAmount.value || 0),
+      credit_used: parseMoneyInput(creditToUse.value),
+      amount_paid: parseMoneyInput(paymentAmount.value),
       due_date: dueDate.value || null,
       payment_notes: String(paymentNotes.value || ''),
     }
@@ -705,10 +860,12 @@ async function confirmSale() {
     cart.clearCart()
     clearCustomer()
     search.value = ''
-    creditToUse.value = 0
-    paymentAmount.value = 0
+    creditToUse.value = '0'
+    paymentAmount.value = '0'
     dueDate.value = ''
     paymentNotes.value = ''
+    editingPriceId.value = null
+    editingPriceValue.value = ''
 
     closePaymentModal()
     await loadProducts()
@@ -726,7 +883,7 @@ async function confirmSale() {
       setTimeout(async () => {
         try {
           await window.posAPI.printTicket({
-            storeName: 'Card Bastion',
+            storeName: posCustomization.value.storeName || 'Card Bastion',
             sale: result.sale,
             items: result.items,
           })
@@ -757,6 +914,7 @@ onMounted(async () => {
   await loadProducts()
   await checkCashStatus()
   await loadPrintSettings()
+  await loadPosCustomization()
 
   await nextTick()
   searchInputRef.value?.focus()
@@ -766,22 +924,52 @@ onMounted(async () => {
 <style scoped>
 .pos-layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
+  grid-template-columns: 280px 1fr;
   min-height: 100vh;
-  background: #1e1e1e;
+  background: #0f1115;
   color: #f5f5f5;
 }
 
 .sidebar {
-  background: #151515;
-  border-right: 1px solid #2f2f2f;
+  background:
+    radial-gradient(circle at top left, rgba(242, 177, 56, 0.18), transparent 28%),
+    linear-gradient(180deg, #151515 0%, #111827 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
   padding: 24px 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  inset: 14px 12px 14px 14px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  pointer-events: none;
+}
+
+.brand,
+.menu-block {
+  position: relative;
+  z-index: 1;
+}
+
+.brand-logo {
+  width: 84px;
+  height: 84px;
+  object-fit: cover;
+  border-radius: 20px;
+  margin-bottom: 12px;
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  animation: floatBrand 5s ease-in-out infinite;
 }
 
 .brand h1 {
   margin: 0;
   font-size: 28px;
-  color: #f2b138;
+  color: var(--accent-color, #f2b138);
 }
 
 .brand p {
@@ -804,20 +992,22 @@ onMounted(async () => {
 
 .menu-btn {
   border: none;
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px;
   text-align: left;
-  background: #262626;
+  background: rgba(38, 38, 38, 0.84);
   color: #f5f5f5;
   cursor: pointer;
   font-size: 15px;
+  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
 }
 
 .menu-btn.active,
 .menu-btn:hover {
-  background: #f29a2e;
+  background: var(--accent-color, #f29a2e);
   color: #111;
   font-weight: 700;
+  transform: translateX(4px);
 }
 
 .logout-btn {
@@ -826,6 +1016,9 @@ onMounted(async () => {
 
 .main-content {
   padding: 20px;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 20%),
+    radial-gradient(circle at bottom left, rgba(242, 177, 56, 0.08), transparent 24%);
 }
 
 .topbar {
@@ -843,6 +1036,17 @@ onMounted(async () => {
   background: #262626;
   color: #fff;
   font-size: 16px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.search-input:focus,
+.input:focus,
+.payment-input:focus,
+.price-editor-input:focus {
+  outline: none;
+  border-color: rgba(242, 177, 56, 0.8);
+  box-shadow: 0 0 0 4px rgba(242, 177, 56, 0.12);
+  transform: translateY(-1px);
 }
 
 .print-toggle-btn {
@@ -860,18 +1064,86 @@ onMounted(async () => {
   background: #525252;
 }
 
+.hero-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+  padding: 20px 22px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(242, 177, 56, 0.22), transparent 22%),
+    linear-gradient(135deg, rgba(24, 24, 27, 0.96), rgba(15, 23, 42, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.16);
+  animation: surfaceEnter 0.5s ease both;
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--accent-color, #f2b138);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.hero-banner h2 {
+  margin: 0;
+  max-width: 620px;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.hero-banner span {
+  display: block;
+  margin-top: 8px;
+  color: #cbd5e1;
+}
+
+.hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(90px, 1fr));
+  gap: 12px;
+}
+
+.hero-stat {
+  min-width: 96px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: center;
+}
+
+.hero-stat strong {
+  display: block;
+  font-size: 28px;
+  color: #fff;
+}
+
+.hero-stat small {
+  color: #cbd5e1;
+}
+
+.hero-stat.warning strong {
+  color: #fbbf24;
+}
+
 .content-grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1fr 400px;
   gap: 20px;
 }
 
 .products-panel,
 .cart-panel {
-  background: #232323;
-  border: 1px solid #323232;
-  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(35, 35, 35, 0.96), rgba(27, 27, 27, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
   padding: 18px;
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.16);
+  animation: surfaceEnter 0.5s ease both;
 }
 
 .panel-header {
@@ -883,34 +1155,35 @@ onMounted(async () => {
 
 .panel-header h2 {
   margin: 0;
-  color: #f2b138;
+  color: var(--accent-color, #f2b138);
 }
 
 .products-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
-  max-height: calc(100vh - 160px);
+  max-height: calc(100vh - 240px);
   overflow-y: auto;
   padding-right: 6px;
 }
 
 .product-card {
-  background: #2c2c2c;
-  border-radius: 16px;
+  background: linear-gradient(180deg, #2c2c2c 0%, #252525 100%);
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid #383838;
+  border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
-  transition: transform 0.15s ease, border-color 0.15s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
 .product-card:hover {
-  transform: translateY(-2px);
-  border-color: #f2b138;
+  transform: translateY(-4px) scale(1.01);
+  border-color: var(--accent-color, #f2b138);
+  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.24);
 }
 
 .product-image {
-  height: 110px;
+  height: 120px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -918,7 +1191,7 @@ onMounted(async () => {
   color: #d6d6d6;
   font-weight: bold;
   overflow: hidden;
-  border-bottom: 1px solid #383838;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .product-card-image {
@@ -957,7 +1230,7 @@ onMounted(async () => {
 }
 
 .product-info strong {
-  color: #f2b138;
+  color: var(--accent-color, #f2b138);
 }
 
 .cart-panel {
@@ -971,7 +1244,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 12px;
   flex: 1;
-  max-height: calc(100vh - 320px);
+  max-height: calc(100vh - 360px);
   overflow-y: auto;
 }
 
@@ -979,9 +1252,11 @@ onMounted(async () => {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  background: #2d2d2d;
-  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(45, 45, 45, 0.96), rgba(36, 36, 36, 0.96));
+  border-radius: 16px;
   padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.12);
 }
 
 .cart-item-info p {
@@ -992,6 +1267,79 @@ onMounted(async () => {
 
 .cart-item-right {
   text-align: right;
+}
+
+.item-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: #d6d6d6;
+}
+
+.price-edit-btn,
+.price-save-btn,
+.price-reset-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.price-edit-btn {
+  background: rgba(37, 99, 235, 0.18);
+  color: #bfdbfe;
+}
+
+.price-editor {
+  margin: 10px 0 12px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  animation: panelDrop 0.2s ease;
+}
+
+.price-editor-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #3a3a3a;
+  background: #20242c;
+  color: white;
+}
+
+.price-editor-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.price-save-btn {
+  background: #22c55e;
+  color: white;
+}
+
+.price-reset-btn {
+  background: #f59e0b;
+  color: #111827;
+}
+
+.price-editor-hint {
+  display: block;
+  margin-top: 8px;
+  color: #cbd5e1;
+  line-height: 1.4;
+}
+
+.custom-price-badge {
+  display: block;
+  margin-top: 6px;
+  color: #fbbf24;
+  font-weight: 700;
 }
 
 .qty-controls {
@@ -1042,7 +1390,7 @@ onMounted(async () => {
 .summary-row.total {
   font-size: 20px;
   margin-top: 10px;
-  color: #f2b138;
+  color: var(--accent-color, #f2b138);
 }
 
 .pay-btn,
@@ -1073,15 +1421,21 @@ onMounted(async () => {
   align-items: center;
   justify-content: center;
   padding: 20px;
+  backdrop-filter: blur(6px);
+  z-index: 2000;
 }
 
 .modal {
   width: 100%;
   max-width: 980px;
-  background: #232323;
-  border: 1px solid #323232;
-  border-radius: 18px;
+  background: linear-gradient(180deg, #232323, #1d1d1d);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
   padding: 20px;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.38);
+  animation: modalEnter 0.24s ease;
+  position: relative;
+  z-index: 2001;
 }
 
 .modal-header {
@@ -1108,9 +1462,25 @@ onMounted(async () => {
 }
 
 .payment-method-btn.active {
-  background: #f29a2e;
+  background: var(--accent-color, #f29a2e);
   color: #111;
   font-weight: 700;
+}
+
+.pos-layout.compact .products-grid {
+  gap: 10px;
+}
+
+.pos-layout.compact .product-image {
+  height: 92px;
+}
+
+.pos-layout.compact .product-info {
+  padding: 10px;
+}
+
+.pos-layout.compact .product-info h3 {
+  font-size: 13px;
 }
 
 .payment-input {
@@ -1207,6 +1577,7 @@ onMounted(async () => {
   padding: 14px 18px;
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  animation: toastIn 0.3s ease;
 }
 
 .cart-warning {
@@ -1296,12 +1667,138 @@ onMounted(async () => {
   border-radius: 12px;
 }
 
+.cart-list-enter-active,
+.cart-list-leave-active {
+  transition: all 0.22s ease;
+}
+
+.cart-list-enter-from,
+.cart-list-leave-to {
+  opacity: 0;
+  transform: translateY(10px) scale(0.98);
+}
+
+@keyframes floatBrand {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes surfaceEnter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes modalEnter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes panelDrop {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1100px) {
+  .content-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(3, 1fr);
+    max-height: none;
+  }
+
+  .cart-items {
+    max-height: none;
+  }
+}
+
 @media (max-width: 900px) {
+  .pos-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .hero-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .hero-stats {
+    width: 100%;
+    grid-template-columns: repeat(3, 1fr);
+  }
+
   .modal {
     max-width: 460px;
   }
 
   .payment-summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .topbar {
+    flex-direction: column;
+  }
+
+  .products-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .cart-item {
+    flex-direction: column;
+  }
+
+  .cart-item-right {
+    text-align: left;
+  }
+
+  .hero-stats {
     grid-template-columns: 1fr;
   }
 }

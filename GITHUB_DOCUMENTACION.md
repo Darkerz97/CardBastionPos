@@ -14,6 +14,11 @@ Se integró una capa completa de control operativo para el POS:
 - edición y eliminación de cierres de caja
 - eliminación segura de productos
 - dropdowns en formularios de productos usando valores ya existentes en BD
+- respaldo completo del sistema
+- exportación operativa multihoja en Excel
+- pantalla de configuración y personalización del POS
+- retiros de efectivo auditados dentro de caja
+- edición temporal de precios en el carrito
 
 ## Usuarios y permisos
 
@@ -39,12 +44,98 @@ Se integró una capa completa de control operativo para el POS:
 - Productos
 - Respaldo
 - Reportes
+- Configuración
 - Clientes
 - Historial por cliente
 - Cuentas por cobrar
 - Preventas
 - Torneos
 - Usuarios
+
+## Respaldo completo
+
+### Qué cambió
+
+- El respaldo dejó de ser una copia simple del archivo `.sqlite`.
+- Ahora se genera un respaldo completo con:
+  - snapshot seguro de SQLite,
+  - carpeta de imagenes de productos,
+  - manifest de respaldo,
+  - compatibilidad hacia atrás con respaldos `.sqlite`.
+
+### Beneficio
+
+- Reduce el riesgo de respaldos incompletos cuando la base trabaja con WAL.
+- Permite restaurar tambien recursos visuales del catálogo.
+
+## Reporte operativo en Excel
+
+### Qué cambió
+
+- La exportación de ventas ahora genera un `.xlsx` en lugar de un CSV simple.
+- Se agregaron hojas con:
+  - `Resumen`
+  - `Ventas`
+  - `PartidasVenta`
+  - `PagosVenta`
+  - `CierresCaja`
+  - `MovInventario`
+  - `Auditoria`
+
+### Alcance operativo
+
+- Ya salen cierres de caja.
+- Ya salen movimientos firmados desde bitácora.
+- Ya salen ingresos, ajustes y egresos de inventario.
+
+## Configuración y personalización del POS
+
+### Nueva pantalla
+
+- Se agregó la ruta `/settings`.
+- La configuración se guarda en la tabla `settings`.
+
+### Ajustes disponibles
+
+- nombre de tienda
+- subtítulo del POS
+- texto del banner principal
+- etiqueta del banner
+- color principal
+- mostrar u ocultar banner
+- modo compacto
+
+### Impacto visual
+
+- El POS consume esta configuración en tiempo real al cargar.
+- El color principal se aplica a varios elementos clave de la interfaz.
+
+## Caja: retiros de efectivo
+
+### Qué se agregó
+
+- Tabla `cash_movements`
+- Registro de retiros de efectivo en caja abierta
+- Captura de:
+  - monto,
+  - motivo,
+  - firma,
+  - notas,
+  - usuario que registra
+
+### Regla operativa
+
+- El retiro reduce el efectivo esperado de la caja.
+- Se valida que no exceda el efectivo esperado disponible.
+- También queda auditado en `audit_logs`.
+
+## POS: edición temporal de precio
+
+### Comportamiento
+
+- Desde el carrito se puede cambiar el precio de una línea solo para la venta actual.
+- El precio original del producto no se modifica en catálogo.
+- La línea queda marcada visualmente como precio temporal.
 
 ## Bitácora firmada
 
@@ -110,12 +201,19 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `electron/ipc/sales-service.cjs`
 - `electron/ipc/history.cjs`
 - `electron/ipc/cash.cjs`
+- `electron/ipc/settings.cjs`
+- `electron/ipc/backup.cjs`
+- `electron/ipc/reports.cjs`
 - `electron/ipc/products.cjs`
 - `src/App.vue`
 - `src/session.js`
 - `src/router/index.js`
+- `src/stores/cartStore.js`
 - `src/views/UsersAdminView.vue`
 - `src/views/SalesHistoryView.vue`
 - `src/views/CashView.vue`
 - `src/views/ProductsView.vue`
 - `src/views/PosView.vue`
+- `src/views/BackupView.vue`
+- `src/views/ReportsView.vue`
+- `src/views/SettingsView.vue`

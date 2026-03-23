@@ -63,9 +63,11 @@ export const useCartStore = defineStore('cart', {
         id: product.id,
         sku: product.sku,
         name: product.name,
+        originalPrice: salePrice,
         price: salePrice,
         stock: stock,
         qty: 1,
+        customPrice: false,
         lineTotal: salePrice,
       })
 
@@ -108,6 +110,37 @@ export const useCartStore = defineStore('cart', {
 
     removeItem(productId) {
       this.items = this.items.filter((i) => i.id !== productId)
+    },
+
+    setItemPrice(productId, nextPrice) {
+      const item = this.items.find((i) => i.id === productId)
+      if (!item) {
+        return { success: false, message: 'Producto no encontrado en carrito.' }
+      }
+
+      const parsedPrice = Number(nextPrice)
+      if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
+        return { success: false, message: 'Ingresa un precio valido.' }
+      }
+
+      item.price = Number(parsedPrice.toFixed(2))
+      item.customPrice = Number(item.price) !== Number(item.originalPrice || 0)
+      item.lineTotal = Number((item.qty * item.price).toFixed(2))
+
+      return { success: true }
+    },
+
+    resetItemPrice(productId) {
+      const item = this.items.find((i) => i.id === productId)
+      if (!item) {
+        return { success: false, message: 'Producto no encontrado en carrito.' }
+      }
+
+      item.price = Number(item.originalPrice || 0)
+      item.customPrice = false
+      item.lineTotal = Number((item.qty * item.price).toFixed(2))
+
+      return { success: true }
     },
 
     clearCart() {

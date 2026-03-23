@@ -57,10 +57,55 @@
           <span>Preventas en efectivo</span>
           <strong>${{ formatPrice(summary?.preorderCashAmount) }}</strong>
         </div>
+        <div class="summary-row">
+          <span>Retiros de efectivo</span>
+          <strong>${{ formatPrice(summary?.withdrawalTotalAmount) }}</strong>
+        </div>
         <div class="summary-row total">
           <span>Efectivo esperado</span>
           <strong>${{ formatPrice(summary?.expectedAmount) }}</strong>
         </div>
+      </div>
+
+      <div class="cash-card">
+        <h2>Retiro de efectivo</h2>
+
+        <label>Monto</label>
+        <input
+          v-model.number="withdrawal.amount"
+          type="number"
+          min="0"
+          step="0.01"
+          class="cash-input"
+          placeholder="0.00"
+        />
+
+        <label>Motivo</label>
+        <input
+          v-model="withdrawal.reason"
+          type="text"
+          class="cash-input"
+          placeholder="Ej. pago de proveedor"
+        />
+
+        <label>Firma</label>
+        <input
+          v-model="withdrawal.signature"
+          type="text"
+          class="cash-input"
+          placeholder="Nombre y firma de quien autoriza"
+        />
+
+        <label>Notas</label>
+        <textarea
+          v-model="withdrawal.notes"
+          class="cash-textarea"
+          placeholder="Notas opcionales"
+        />
+
+        <button class="secondary-btn" @click="handleAddWithdrawal">
+          Registrar retiro
+        </button>
       </div>
 
       <div class="cash-card">
@@ -111,6 +156,32 @@
       <div class="summary-row total">
         <span>Diferencia</span>
         <strong>${{ formatPrice(closeResult.difference) }}</strong>
+      </div>
+    </section>
+
+    <section class="cash-card">
+      <div class="panel-head">
+        <h2>Retiros registrados</h2>
+        <span>{{ cashMovements.length }} movimientos</span>
+      </div>
+
+      <div v-if="cashMovements.length" class="sessions-list">
+        <div v-for="movement in cashMovements" :key="movement.id" class="session-row">
+          <div>
+            <strong>{{ formatMovementType(movement.type) }}</strong>
+            <p>{{ movement.reason }}</p>
+            <small>Firma: {{ movement.signature }}</small>
+            <small v-if="movement.createdBy">Registrado por: {{ movement.createdBy }}</small>
+          </div>
+          <div class="session-meta">
+            <span>${{ formatPrice(movement.amount) }}</span>
+            <small>{{ formatDate(movement.createdAt) }}</small>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="empty-state">
+        No hay retiros registrados en la caja abierta.
       </div>
     </section>
 
@@ -167,11 +238,18 @@ import { computed, onMounted, reactive, ref } from 'vue'
 const openSession = ref(null)
 const summary = ref(null)
 const sessions = ref([])
+const cashMovements = ref([])
 const openingAmount = ref(0)
 const closingAmount = ref(0)
 const notes = ref('')
 const errorMessage = ref('')
 const closeResult = ref(null)
+const withdrawal = reactive({
+  amount: 0,
+  reason: '',
+  signature: '',
+  notes: '',
+})
 const editSession = reactive({
   open: false,
   id: null,
@@ -185,6 +263,11 @@ function formatPrice(value) {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : ''
+}
+
+function formatMovementType(type) {
+  if (type === 'withdrawal') return 'Retiro'
+  return type || 'Movimiento'
 }
 
 const predictedDifference = computed(() => {
@@ -202,6 +285,7 @@ async function loadCashState() {
   openSession.value = session
   summary.value = currentSummary
   sessions.value = sessionList || []
+  cashMovements.value = session ? (await window.posAPI.getCashMovements()) || [] : []
 }
 
 async function handleOpenSession() {
@@ -231,6 +315,28 @@ async function handleCloseSession() {
     }
   } catch (error) {
     errorMessage.value = error?.message || 'No se pudo cerrar la caja.'
+  }
+}
+
+async function handleAddWithdrawal() {
+  try {
+    errorMessage.value = ''
+    const result = await window.posAPI.addCashWithdrawal({
+      amount: Number(withdrawal.amount || 0),
+      reason: String(withdrawal.reason || ''),
+      signature: String(withdrawal.signature || ''),
+      notes: String(withdrawal.notes || ''),
+    })
+
+    if (result?.success) {
+      withdrawal.amount = 0
+      withdrawal.reason = ''
+      withdrawal.signature = ''
+      withdrawal.notes = ''
+      await loadCashState()
+    }
+  } catch (error) {
+    errorMessage.value = error?.message || 'No se pudo registrar el retiro.'
   }
 }
 

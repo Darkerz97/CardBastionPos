@@ -5,6 +5,7 @@ import CashView from '../views/CashView.vue'
 import ProductsView from '../views/ProductsView.vue'
 import BackupView from '../views/BackupView.vue'
 import ReportsView from '../views/ReportsView.vue'
+import SettingsView from '../views/SettingsView.vue'
 import CustomersView from '../views/CustomersView.vue'
 import CustomerHistoryView from '../views/CustomerHistoryView.vue'
 import TournamentsView from '../views/TournamentsView.vue'
@@ -21,6 +22,7 @@ const routes = [
   { path: '/products', name: 'products', component: ProductsView, meta: { permission: 'products' } },
   { path: '/backup', name: 'backup', component: BackupView, meta: { permission: 'backup' } },
   { path: '/reports', name: 'reports', component: ReportsView, meta: { permission: 'reports' } },
+  { path: '/settings', name: 'settings', component: SettingsView, meta: { permission: 'settings' } },
   { path: '/customers', name: 'customers', component: CustomersView, meta: { permission: 'customers' } },
   { path: '/customers/history', name: 'customer-history', component: CustomerHistoryView, meta: { permission: 'customer-history' } },
   { path: '/receivables', name: 'receivables', component: ReceivablesView, meta: { permission: 'receivables' } },

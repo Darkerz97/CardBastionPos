@@ -1,6 +1,7 @@
 const { ipcMain, dialog } = require('electron')
 const fs = require('fs')
 const path = require('path')
+const XLSX = require('xlsx')
 const { getDb } = require('../database/db.cjs')
 
 function toSqlDate(value) {
@@ -14,6 +15,39 @@ function escapeCsv(value) {
     return `"${text.replace(/"/g, '""')}"`
   }
   return text
+}
+
+function buildDateWhereClause(column, filters = {}, params = []) {
+  const dateFrom = toSqlDate(filters.dateFrom)
+  const dateTo = toSqlDate(filters.dateTo)
+  const where = []
+
+  if (dateFrom) {
+    where.push(`date(${column}, 'localtime') >= ?`)
+    params.push(dateFrom)
+  }
+
+  if (dateTo) {
+    where.push(`date(${column}, 'localtime') <= ?`)
+    params.push(dateTo)
+  }
+
+  return where
+}
+
+function normalizeSheetRows(rows = []) {
+  return rows.map((row) => {
+    const normalized = {}
+    for (const [key, value] of Object.entries(row)) {
+      normalized[key] = value === null || value === undefined ? '' : value
+    }
+    return normalized
+  })
+}
+
+function appendSheet(workbook, name, rows) {
+  const sheet = XLSX.utils.json_to_sheet(normalizeSheetRows(rows))
+  XLSX.utils.book_append_sheet(workbook, sheet, name)
 }
 
 function buildSalesFilter(filters = {}, tableAlias = 's') {
@@ -250,9 +284,32 @@ function registerReportHandlers() {
     const db = getDb()
     const { whereSql, params } = buildSalesFilter(filters, 's')
 
-    const rows = db.prepare(`
+    const salesRows = db.prepare(`
       SELECT
-        s.id,
+        s.id as sale_id,
+        s.folio,
+        s.created_at,
+        s.payment_method,
+        s.subtotal,
+        s.discount,
+        s.total,
+        s.credit_used,
+        COALESCE(s.amount_paid, 0) as amount_paid,
+        COALESCE(s.amount_due, 0) as amount_due,
+        COALESCE(s.payment_status, 'paid') as payment_status,
+        s.cash_received,
+        s.change_given,
+        c.name as customer_name,
+        c.phone as customer_phone
+      FROM sales s
+      LEFT JOIN customers c ON c.id = s.customer_id
+      ${whereSql}
+      ORDER BY s.created_at DESC, s.id DESC
+    `).all(...params)
+
+    const saleItemRows = db.prepare(`
+      SELECT
+        s.id as sale_id,
         s.folio,
         s.created_at,
         s.payment_method,
@@ -270,7 +327,8 @@ function registerReportHandlers() {
         si.sku,
         si.qty,
         si.unit_price,
-        si.line_total
+        si.line_total,
+        COALESCE(si.unit_cost, 0) as unit_cost
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       LEFT JOIN sale_items si ON si.sale_id = s.id
@@ -278,70 +336,135 @@ function registerReportHandlers() {
       ORDER BY s.created_at DESC, si.id ASC
     `).all(...params)
 
+    const salePaymentsParams = []
+    const salePaymentsWhere = buildDateWhereClause('sp.created_at', filters, salePaymentsParams)
+    const salePaymentsWhereSql = salePaymentsWhere.length ? `WHERE ${salePaymentsWhere.join(' AND ')}` : ''
+
+    const salePaymentsRows = db.prepare(`
+      SELECT
+        sp.id as payment_id,
+        sp.sale_id,
+        s.folio,
+        sp.created_at,
+        sp.amount,
+        sp.payment_method,
+        COALESCE(sp.is_initial, 0) as is_initial,
+        COALESCE(sp.notes, '') as notes,
+        COALESCE(sp.user_id, '') as user_id
+      FROM sale_payments sp
+      LEFT JOIN sales s ON s.id = sp.sale_id
+      ${salePaymentsWhereSql}
+      ORDER BY sp.created_at DESC, sp.id DESC
+    `).all(...salePaymentsParams)
+
+    const cashParams = []
+    const cashWhere = ['cs.deleted_at IS NULL', ...buildDateWhereClause('cs.opened_at', filters, cashParams)]
+    const cashWhereSql = cashWhere.length ? `WHERE ${cashWhere.join(' AND ')}` : ''
+
+    const cashRows = db.prepare(`
+      SELECT
+        cs.id as cash_session_id,
+        cs.opened_at,
+        cs.closed_at,
+        cs.opening_amount,
+        cs.closing_amount,
+        cs.expected_amount,
+        cs.difference,
+        cs.status,
+        cs.notes,
+        COALESCE(open_user.display_name, open_user.username, '') as opened_by,
+        COALESCE(close_user.display_name, close_user.username, '') as closed_by,
+        COALESCE(update_user.display_name, update_user.username, '') as updated_by
+      FROM cash_sessions cs
+      LEFT JOIN users open_user ON open_user.id = cs.opened_by_user_id
+      LEFT JOIN users close_user ON close_user.id = cs.closed_by_user_id
+      LEFT JOIN users update_user ON update_user.id = cs.updated_by_user_id
+      ${cashWhereSql}
+      ORDER BY cs.opened_at DESC, cs.id DESC
+    `).all(...cashParams)
+
+    const inventoryParams = []
+    const inventoryWhere = buildDateWhereClause('im.created_at', filters, inventoryParams)
+    const inventoryWhereSql = inventoryWhere.length ? `WHERE ${inventoryWhere.join(' AND ')}` : ''
+
+    const inventoryRows = db.prepare(`
+      SELECT
+        im.id as movement_id,
+        im.created_at,
+        p.name as product_name,
+        p.sku,
+        im.type,
+        im.quantity,
+        im.stock_before,
+        im.stock_after,
+        im.reference_type,
+        im.reference_id,
+        im.notes
+      FROM inventory_movements im
+      LEFT JOIN products p ON p.id = im.product_id
+      ${inventoryWhereSql}
+      ORDER BY im.created_at DESC, im.id DESC
+    `).all(...inventoryParams)
+
+    const auditParams = []
+    const auditWhere = buildDateWhereClause('al.created_at', filters, auditParams)
+    const auditWhereSql = auditWhere.length ? `WHERE ${auditWhere.join(' AND ')}` : ''
+
+    const auditRows = db.prepare(`
+      SELECT
+        al.id as audit_id,
+        al.created_at,
+        al.username,
+        al.display_name,
+        al.entity_type,
+        al.entity_id,
+        al.action,
+        al.description,
+        COALESCE(al.payload_json, '') as payload_json
+      FROM audit_logs al
+      ${auditWhereSql}
+      ORDER BY al.created_at DESC, al.id DESC
+    `).all(...auditParams)
+
     const saveResult = await dialog.showSaveDialog({
-      title: 'Guardar reporte de ventas',
-      defaultPath: path.join(process.cwd(), 'reporte_ventas.csv'),
-      filters: [{ name: 'CSV', extensions: ['csv'] }],
+      title: 'Guardar reporte completo',
+      defaultPath: path.join(process.cwd(), 'reporte_operativo.xlsx'),
+      filters: [{ name: 'Excel', extensions: ['xlsx'] }],
     })
 
     if (saveResult.canceled || !saveResult.filePath) {
       return { success: false, canceled: true }
     }
 
-    const header = [
-      'sale_id',
-      'folio',
-      'created_at',
-      'payment_method',
-      'subtotal',
-      'discount',
-      'total',
-      'credit_used',
-      'amount_paid',
-      'amount_due',
-      'payment_status',
-      'cash_received',
-      'change_given',
-      'customer_name',
-      'product_name',
-      'sku',
-      'qty',
-      'unit_price',
-      'line_total',
+    const summaryRows = [
+      {
+        reporte: 'Ventas',
+        fecha_desde: toSqlDate(filters.dateFrom) || '',
+        fecha_hasta: toSqlDate(filters.dateTo) || '',
+        total_ventas: salesRows.length,
+        total_partidas: saleItemRows.length,
+        total_pagos_venta: salePaymentsRows.length,
+        total_cierres_caja: cashRows.length,
+        total_movimientos_inventario: inventoryRows.length,
+        total_movimientos_firmados: auditRows.length,
+      },
     ]
 
-    const lines = [header.join(',')]
-
-    for (const row of rows) {
-      lines.push([
-        escapeCsv(row.id),
-        escapeCsv(row.folio),
-        escapeCsv(row.created_at),
-        escapeCsv(row.payment_method),
-        escapeCsv(row.subtotal),
-        escapeCsv(row.discount),
-        escapeCsv(row.total),
-        escapeCsv(row.credit_used),
-        escapeCsv(row.amount_paid),
-        escapeCsv(row.amount_due),
-        escapeCsv(row.payment_status),
-        escapeCsv(row.cash_received),
-        escapeCsv(row.change_given),
-        escapeCsv(row.customer_name),
-        escapeCsv(row.product_name),
-        escapeCsv(row.sku),
-        escapeCsv(row.qty),
-        escapeCsv(row.unit_price),
-        escapeCsv(row.line_total),
-      ].join(','))
-    }
-
-    fs.writeFileSync(saveResult.filePath, lines.join('\n'), 'utf8')
+    const workbook = XLSX.utils.book_new()
+    appendSheet(workbook, 'Resumen', summaryRows)
+    appendSheet(workbook, 'Ventas', salesRows)
+    appendSheet(workbook, 'PartidasVenta', saleItemRows)
+    appendSheet(workbook, 'PagosVenta', salePaymentsRows)
+    appendSheet(workbook, 'CierresCaja', cashRows)
+    appendSheet(workbook, 'MovInventario', inventoryRows)
+    appendSheet(workbook, 'Auditoria', auditRows)
+    XLSX.writeFile(workbook, saveResult.filePath)
 
     return {
       success: true,
       filePath: saveResult.filePath,
-      rows: rows.length,
+      rows: salesRows.length,
+      sheets: 7,
     }
   })
 
