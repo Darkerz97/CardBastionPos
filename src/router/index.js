@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import AppShell from '../components/AppShell.vue'
 import PosView from '../views/PosView.vue'
 import SalesHistoryView from '../views/SalesHistoryView.vue'
 import CashView from '../views/CashView.vue'
@@ -14,21 +15,26 @@ import PreordersView from '../views/PreordersView.vue'
 import UsersAdminView from '../views/UsersAdminView.vue'
 import { refreshSession, hasWindowAccess, getFirstAllowedRoute } from '../session'
 
-
 const routes = [
-  { path: '/', name: 'pos', component: PosView, meta: { permission: 'pos' } },
-  { path: '/history', name: 'history', component: SalesHistoryView, meta: { permission: 'history' } },
-  { path: '/cash', name: 'cash', component: CashView, meta: { permission: 'cash' } },
-  { path: '/products', name: 'products', component: ProductsView, meta: { permission: 'products' } },
-  { path: '/backup', name: 'backup', component: BackupView, meta: { permission: 'backup' } },
-  { path: '/reports', name: 'reports', component: ReportsView, meta: { permission: 'reports' } },
-  { path: '/settings', name: 'settings', component: SettingsView, meta: { permission: 'settings' } },
-  { path: '/customers', name: 'customers', component: CustomersView, meta: { permission: 'customers' } },
-  { path: '/customers/history', name: 'customer-history', component: CustomerHistoryView, meta: { permission: 'customer-history' } },
-  { path: '/receivables', name: 'receivables', component: ReceivablesView, meta: { permission: 'receivables' } },
-  { path: '/preorders', name: 'preorders', component: PreordersView, meta: { permission: 'preorders' } },
-  { path: '/tournaments', name: 'tournaments', component: TournamentsView, meta: { permission: 'tournaments' } },
-  { path: '/users', name: 'users', component: UsersAdminView, meta: { permission: 'users' } },
+  {
+    path: '/',
+    component: AppShell,
+    children: [
+      { path: '', name: 'pos', component: PosView, meta: { permission: 'pos' } },
+      { path: 'history', name: 'history', component: SalesHistoryView, meta: { permission: 'history' } },
+      { path: 'cash', name: 'cash', component: CashView, meta: { permission: 'cash' } },
+      { path: 'products', name: 'products', component: ProductsView, meta: { permission: 'products' } },
+      { path: 'backup', name: 'backup', component: BackupView, meta: { permission: 'backup' } },
+      { path: 'reports', name: 'reports', component: ReportsView, meta: { permission: 'reports' } },
+      { path: 'settings', name: 'settings', component: SettingsView, meta: { permission: 'settings' } },
+      { path: 'customers', name: 'customers', component: CustomersView, meta: { permission: 'customers' } },
+      { path: 'customers/history', name: 'customer-history', component: CustomerHistoryView, meta: { permission: 'customer-history' } },
+      { path: 'receivables', name: 'receivables', component: ReceivablesView, meta: { permission: 'receivables' } },
+      { path: 'preorders', name: 'preorders', component: PreordersView, meta: { permission: 'preorders' } },
+      { path: 'tournaments', name: 'tournaments', component: TournamentsView, meta: { permission: 'tournaments' } },
+      { path: 'users', name: 'users', component: UsersAdminView, meta: { permission: 'users' } },
+    ],
+  },
 ]
 
 const router = createRouter({

@@ -3,12 +3,8 @@
     <header class="receivables-header">
       <div>
         <h1>Cuentas por cobrar</h1>
-        <p>Ventas pendientes, parciales y registro de abonos</p>
+        <p>Agrupadas por cliente para cobrar en un solo pago</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section v-if="summary" class="summary-grid">
@@ -45,7 +41,6 @@
           <option value="">Todas</option>
           <option value="pending">Pendientes</option>
           <option value="partial">Parciales</option>
-          <option value="paid">Pagadas</option>
         </select>
       </div>
 
@@ -82,39 +77,34 @@
 
     <section class="table-card">
       <div class="table-header">
-        <h2>Listado</h2>
-        <span>{{ receivables.length }} registros</span>
+        <h2>Clientes con saldo pendiente</h2>
+        <span>{{ groupedReceivables.length }} clientes</span>
       </div>
 
-      <div v-if="receivables.length" class="table-wrap">
+      <div v-if="groupedReceivables.length" class="table-wrap">
         <table class="report-table">
           <thead>
             <tr>
-              <th>Folio</th>
               <th>Cliente</th>
-              <th>Fecha</th>
-              <th>Total</th>
-              <th>Pagado</th>
-              <th>Pendiente</th>
-              <th>Estado</th>
-              <th>Vencimiento</th>
+              <th>Tel�fono</th>
+              <th>Ventas abiertas</th>
+              <th>Total pendiente</th>
+              <th>Vencidas</th>
+              <th>�ltima venta</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="row in receivables" :key="row.id">
-              <td>{{ row.folio }}</td>
-              <td>{{ row.customerName || 'Publico general' }}</td>
-              <td>{{ formatDate(row.createdAt) }}</td>
-              <td>${{ formatMoney(row.total) }}</td>
-              <td>${{ formatMoney(row.amountPaid) }}</td>
-              <td>${{ formatMoney(row.amountDue) }}</td>
-              <td>{{ formatStatus(row.paymentStatus) }}</td>
-              <td>{{ formatDate(row.dueDate) || 'N/D' }}</td>
+            <tr v-for="group in groupedReceivables" :key="group.customerId">
+              <td>{{ group.customerName }}</td>
+              <td>{{ group.customerPhone || 'Sin tel�fono' }}</td>
+              <td>{{ group.openSales }}</td>
+              <td>${{ formatMoney(group.totalDue) }}</td>
+              <td>{{ group.overdueSales }}</td>
+              <td>{{ formatDate(group.lastSaleAt) || 'N/D' }}</td>
               <td class="actions-cell">
-                <button class="small-btn" @click="openDetail(row.id)">Ver detalle</button>
-                <button class="small-btn" :disabled="row.amountDue <= 0" @click="openPaymentModal(row)">Registrar abono</button>
-                <button class="small-btn" :disabled="row.amountDue <= 0" @click="liquidate(row)">Liquidar</button>
+                <button class="small-btn" @click="openCustomerDetail(group)">Ver ventas</button>
+                <button class="small-btn" @click="openCustomerPaymentModal(group)">Cobro �nico</button>
               </td>
             </tr>
           </tbody>
@@ -124,27 +114,65 @@
       <div v-else class="empty-state">No hay cuentas por mostrar con los filtros actuales.</div>
     </section>
 
-    <div v-if="showDetail && detail" class="modal-overlay" @click.self="closeDetail">
+    <div v-if="showCustomerDetail && customerDetail" class="modal-overlay" @click.self="closeCustomerDetail">
       <div class="modal-card large">
         <div class="modal-header">
-          <h3>Detalle {{ detail.receivable.folio }}</h3>
-          <button class="close-btn" @click="closeDetail">Cerrar</button>
+          <h3>Detalle por cliente</h3>
+          <button class="close-btn" @click="closeCustomerDetail">Cerrar</button>
+        </div>
+
+        <p><strong>Cliente:</strong> {{ customerDetail.customerName }}</p>
+        <p><strong>Saldo total:</strong> ${{ formatMoney(customerDetail.totalDue) }}</p>
+
+        <div class="table-wrap">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Folio</th>
+                <th>Fecha</th>
+                <th>Total</th>
+                <th>Pagado</th>
+                <th>Pendiente</th>
+                <th>Estado</th>
+                <th>Acci�n</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="sale in customerDetail.sales" :key="sale.id">
+                <td>{{ sale.folio }}</td>
+                <td>{{ formatDate(sale.createdAt) }}</td>
+                <td>${{ formatMoney(sale.total) }}</td>
+                <td>${{ formatMoney(sale.amountPaid) }}</td>
+                <td>${{ formatMoney(sale.amountDue) }}</td>
+                <td>{{ formatStatus(sale.paymentStatus) }}</td>
+                <td><button class="small-btn" @click="openSaleDetail(sale.id)">Detalle</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showSaleDetail && saleDetail" class="modal-overlay" @click.self="closeSaleDetail">
+      <div class="modal-card large">
+        <div class="modal-header">
+          <h3>Detalle {{ saleDetail.receivable.folio }}</h3>
+          <button class="close-btn" @click="closeSaleDetail">Cerrar</button>
         </div>
 
         <div class="detail-grid">
           <div>
-            <p><strong>Cliente:</strong> {{ detail.receivable.customerName || 'Publico general' }}</p>
-            <p><strong>Estado:</strong> {{ formatStatus(detail.receivable.paymentStatus) }}</p>
-            <p><strong>Total:</strong> ${{ formatMoney(detail.receivable.total) }}</p>
-            <p><strong>Pagado:</strong> ${{ formatMoney(detail.receivable.amountPaid) }}</p>
-            <p><strong>Pendiente:</strong> ${{ formatMoney(detail.receivable.amountDue) }}</p>
-            <p><strong>Vencimiento:</strong> {{ formatDate(detail.receivable.dueDate) || 'N/D' }}</p>
+            <p><strong>Cliente:</strong> {{ saleDetail.receivable.customerName || 'Publico general' }}</p>
+            <p><strong>Estado:</strong> {{ formatStatus(saleDetail.receivable.paymentStatus) }}</p>
+            <p><strong>Total:</strong> ${{ formatMoney(saleDetail.receivable.total) }}</p>
+            <p><strong>Pagado:</strong> ${{ formatMoney(saleDetail.receivable.amountPaid) }}</p>
+            <p><strong>Pendiente:</strong> ${{ formatMoney(saleDetail.receivable.amountDue) }}</p>
           </div>
 
           <div>
             <h4>Pagos / Abonos</h4>
-            <div v-if="detail.payments.length" class="payments-list">
-              <div v-for="p in detail.payments" :key="p.id" class="payment-row">
+            <div v-if="saleDetail.payments.length" class="payments-list">
+              <div v-for="p in saleDetail.payments" :key="p.id" class="payment-row">
                 <div>
                   <strong>${{ formatMoney(p.amount) }}</strong>
                   <p>{{ formatPayment(p.paymentMethod) }}</p>
@@ -161,21 +189,20 @@
       </div>
     </div>
 
-    <div v-if="showPayment && selectedReceivable" class="modal-overlay" @click.self="closePaymentModal">
+    <div v-if="showCustomerPayment && selectedCustomerGroup" class="modal-overlay" @click.self="closeCustomerPaymentModal">
       <div class="modal-card">
         <div class="modal-header">
-          <h3>Registrar abono</h3>
-          <button class="close-btn" @click="closePaymentModal">Cerrar</button>
+          <h3>Cobro �nico por cliente</h3>
+          <button class="close-btn" @click="closeCustomerPaymentModal">Cerrar</button>
         </div>
 
-        <p><strong>Folio:</strong> {{ selectedReceivable.folio }}</p>
-        <p><strong>Cliente:</strong> {{ selectedReceivable.customerName || 'Publico general' }}</p>
-        <p><strong>Pendiente:</strong> ${{ formatMoney(selectedReceivable.amountDue) }}</p>
+        <p><strong>Cliente:</strong> {{ selectedCustomerGroup.customerName }}</p>
+        <p><strong>Saldo total pendiente:</strong> ${{ formatMoney(selectedCustomerGroup.totalDue) }}</p>
 
         <label>Monto</label>
         <input v-model.number="paymentForm.amount" class="input" type="number" min="0" step="0.01" />
 
-        <label>Metodo</label>
+        <label>M�todo</label>
         <select v-model="paymentForm.paymentMethod" class="input">
           <option value="cash">Efectivo</option>
           <option value="card">Tarjeta</option>
@@ -183,27 +210,32 @@
         </select>
 
         <label>Notas</label>
-        <textarea v-model="paymentForm.notes" class="input" rows="3" placeholder="Observaciones del abono" />
+        <textarea v-model="paymentForm.notes" class="input" rows="3" placeholder="Observaciones del cobro" />
 
         <div v-if="errorMessage" class="error-box">{{ errorMessage }}</div>
 
-        <button class="primary-btn" @click="savePayment">Guardar abono</button>
+        <button class="primary-btn" @click="saveCustomerPayment">Registrar cobro</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const receivables = ref([])
 const customers = ref([])
 const summary = ref(null)
-const detail = ref(null)
-const showDetail = ref(false)
-const showPayment = ref(false)
-const selectedReceivable = ref(null)
 const errorMessage = ref('')
+
+const showCustomerDetail = ref(false)
+const customerDetail = ref(null)
+
+const showSaleDetail = ref(false)
+const saleDetail = ref(null)
+
+const showCustomerPayment = ref(false)
+const selectedCustomerGroup = ref(null)
 
 const filters = reactive({
   status: '',
@@ -217,6 +249,43 @@ const paymentForm = reactive({
   amount: 0,
   paymentMethod: 'cash',
   notes: '',
+})
+
+const groupedReceivables = computed(() => {
+  const map = new Map()
+
+  for (const row of receivables.value || []) {
+    if (!row.customerId) continue
+
+    const existing = map.get(row.customerId) || {
+      customerId: row.customerId,
+      customerName: row.customerName || 'Sin nombre',
+      customerPhone: row.customerPhone || '',
+      openSales: 0,
+      overdueSales: 0,
+      totalDue: 0,
+      totalPaid: 0,
+      lastSaleAt: '',
+      sales: [],
+    }
+
+    existing.openSales += 1
+    existing.totalDue += Number(row.amountDue || 0)
+    existing.totalPaid += Number(row.amountPaid || 0)
+    existing.sales.push(row)
+
+    if (row.isOverdue) {
+      existing.overdueSales += 1
+    }
+
+    if (!existing.lastSaleAt || new Date(row.createdAt).getTime() > new Date(existing.lastSaleAt).getTime()) {
+      existing.lastSaleAt = row.createdAt
+    }
+
+    map.set(row.customerId, existing)
+  }
+
+  return Array.from(map.values()).sort((a, b) => Number(b.totalDue || 0) - Number(a.totalDue || 0))
 })
 
 function formatMoney(value) {
@@ -260,58 +329,70 @@ async function loadReceivables() {
     dateTo: filters.dateTo || undefined,
     overdueOnly: Boolean(filters.overdueOnly),
   })
+
+  receivables.value = (receivables.value || []).filter((row) => Number(row.amountDue || 0) > 0)
 }
 
-async function openDetail(saleId) {
-  detail.value = await window.posAPI.getReceivableById(saleId)
-  showDetail.value = true
+function openCustomerDetail(group) {
+  customerDetail.value = {
+    customerId: group.customerId,
+    customerName: group.customerName,
+    totalDue: group.totalDue,
+    sales: [...group.sales].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+  }
+  showCustomerDetail.value = true
 }
 
-function closeDetail() {
-  showDetail.value = false
-  detail.value = null
+function closeCustomerDetail() {
+  showCustomerDetail.value = false
+  customerDetail.value = null
 }
 
-function openPaymentModal(row) {
+async function openSaleDetail(saleId) {
+  saleDetail.value = await window.posAPI.getReceivableById(saleId)
+  showSaleDetail.value = true
+}
+
+function closeSaleDetail() {
+  showSaleDetail.value = false
+  saleDetail.value = null
+}
+
+function openCustomerPaymentModal(group) {
   errorMessage.value = ''
-  selectedReceivable.value = row
-  paymentForm.amount = Number(row.amountDue || 0)
+  selectedCustomerGroup.value = group
+  paymentForm.amount = Number(group.totalDue || 0)
   paymentForm.paymentMethod = 'cash'
-  paymentForm.notes = ''
-  showPayment.value = true
+  paymentForm.notes = 'Cobro �nico por cliente'
+  showCustomerPayment.value = true
 }
 
-function closePaymentModal() {
-  showPayment.value = false
-  selectedReceivable.value = null
+function closeCustomerPaymentModal() {
+  showCustomerPayment.value = false
+  selectedCustomerGroup.value = null
 }
 
-function liquidate(row) {
-  openPaymentModal(row)
-  paymentForm.amount = Number(row.amountDue || 0)
-  paymentForm.notes = 'Liquidacion de saldo'
-}
-
-async function savePayment() {
+async function saveCustomerPayment() {
   try {
     errorMessage.value = ''
 
-    if (!selectedReceivable.value) return
+    if (!selectedCustomerGroup.value) return
 
-    await window.posAPI.addReceivablePayment({
-      saleId: Number(selectedReceivable.value.id),
+    await window.posAPI.addCustomerReceivablePayment({
+      customerId: Number(selectedCustomerGroup.value.customerId),
       amount: Number(paymentForm.amount || 0),
       paymentMethod: String(paymentForm.paymentMethod || 'cash'),
       notes: String(paymentForm.notes || ''),
     })
 
-    closePaymentModal()
+    closeCustomerPaymentModal()
+
     await Promise.all([
       loadReceivables(),
       loadSummary(),
     ])
   } catch (error) {
-    errorMessage.value = error?.message || 'No se pudo registrar el abono.'
+    errorMessage.value = error?.message || 'No se pudo registrar el cobro.'
   }
 }
 

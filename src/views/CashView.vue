@@ -5,10 +5,6 @@
         <h1>Caja</h1>
         <p>Apertura, cierre y administracion de cierres</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section v-if="!openSession" class="cash-card">

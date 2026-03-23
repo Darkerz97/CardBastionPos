@@ -5,10 +5,6 @@
         <h1>Usuarios y permisos</h1>
         <p>Controla acceso por ventana y consulta la bitacora firmada</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section class="users-grid">

@@ -19,6 +19,9 @@ Se integró una capa completa de control operativo para el POS:
 - pantalla de configuración y personalización del POS
 - retiros de efectivo auditados dentro de caja
 - edición temporal de precios en el carrito
+- sidebar persistente en todas las vistas autenticadas
+- limpieza de botones internos para volver al POS
+- SKU secuencial sugerido al crear productos
 
 ## Usuarios y permisos
 
@@ -110,6 +113,19 @@ Se integró una capa completa de control operativo para el POS:
 - El POS consume esta configuración en tiempo real al cargar.
 - El color principal se aplica a varios elementos clave de la interfaz.
 
+## Navegación persistente
+
+### Qué cambió
+
+- La barra lateral del POS se movió a un layout compartido.
+- Ahora permanece visible en todas las vistas autenticadas.
+- La navegación lateral respeta permisos por ventana y mantiene visible la identidad visual configurada.
+
+### Ajuste adicional
+
+- Se retiraron botones redundantes de "Volver al POS" dentro de vistas secundarias.
+- Se conservó solo la navegación contextual que sigue aportando valor, como volver a clientes desde historial por cliente.
+
 ## Caja: retiros de efectivo
 
 ### Qué se agregó
@@ -192,6 +208,12 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - idioma
 - condición
 
+### SKU secuencial por defecto
+
+- En el alta de producto nuevo se propone automáticamente un SKU con formato `CB-00000`.
+- El siguiente valor se calcula a partir del mayor consecutivo encontrado en productos activos e inactivos.
+- El campo sigue siendo editable antes de guardar.
+
 ## Archivos principales tocados
 
 - `electron/database/init.cjs`
@@ -208,6 +230,7 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `src/App.vue`
 - `src/session.js`
 - `src/router/index.js`
+- `src/components/AppShell.vue`
 - `src/stores/cartStore.js`
 - `src/views/UsersAdminView.vue`
 - `src/views/SalesHistoryView.vue`

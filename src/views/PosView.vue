@@ -1,34 +1,5 @@
 <template>
-  <div class="pos-layout" :style="themeVars" :class="{ compact: posCustomization.compactMode }">
-    <aside class="sidebar">
-      <div class="brand">
-        <img :src="posLogo" alt="Card Bastion" class="brand-logo" />
-        <h1>{{ posCustomization.storeName }}</h1>
-        <p>{{ posCustomization.posSubtitle }}</p>
-        <small v-if="sessionState.user" class="session-caption">
-          {{ sessionState.user.displayName }}
-        </small>
-      </div>
-
-      <div class="menu-block">
-        <button class="menu-btn active">Nueva venta</button>
-        <button v-if="hasWindowAccess('history')" class="menu-btn" @click="$router.push('/history')">Historial</button>
-        <button v-if="hasWindowAccess('cash')" class="menu-btn" @click="$router.push('/cash')">Caja</button>
-        <button v-if="hasWindowAccess('products')" class="menu-btn" @click="$router.push('/products')">Productos</button>
-        <button v-if="hasWindowAccess('backup')" class="menu-btn" @click="$router.push('/backup')">Respaldo</button>
-        <button v-if="hasWindowAccess('reports')" class="menu-btn" @click="$router.push('/reports')">Reportes</button>
-        <button v-if="hasWindowAccess('settings')" class="menu-btn" @click="$router.push('/settings')">Configuracion</button>
-        <button v-if="hasWindowAccess('customers')" class="menu-btn" @click="$router.push('/customers')">Clientes</button>
-        <button v-if="hasWindowAccess('customer-history')" class="menu-btn" @click="$router.push('/customers/history')">Historial por cliente</button>
-        <button v-if="hasWindowAccess('receivables')" class="menu-btn" @click="$router.push('/receivables')">Cuentas por cobrar</button>
-        <button v-if="hasWindowAccess('preorders')" class="menu-btn" @click="$router.push('/preorders')">Preventas</button>
-        <button v-if="hasWindowAccess('tournaments')" class="menu-btn" @click="$router.push('/tournaments')">Torneos</button>
-        <button v-if="hasWindowAccess('users')" class="menu-btn" @click="$router.push('/users')">Usuarios</button>
-        <button class="menu-btn logout-btn" @click="handleLogout">Cambiar usuario</button>
-      </div>
-    </aside>
-
-    <main class="main-content">
+  <div class="pos-page" :class="{ compact: posCustomization.compactMode }">
       <header class="topbar">
         <input
           ref="searchInputRef"
@@ -278,7 +249,6 @@
           </div>
         </div>
       </section>
-    </main>
 
     <div v-if="showPaymentModal" class="modal-overlay" @click.self="closePaymentModal">
       <div class="modal">
@@ -419,8 +389,6 @@
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { useCartStore } from '../stores/cartStore'
-import { clearSessionState, hasWindowAccess, sessionState } from '../session'
-import heroImage from '../assets/hero.png'
 
 const products = ref([])
 const search = ref('')
@@ -448,7 +416,6 @@ const dueDate = ref('')
 const paymentNotes = ref('')
 const editingPriceId = ref(null)
 const editingPriceValue = ref('')
-const posLogo = heroImage
 const posCustomization = ref({
   storeName: 'Card Bastion',
   posSubtitle: 'Point of Sale',
@@ -519,10 +486,6 @@ function parseMoneyInput(value) {
   const parsed = Number(normalized)
   return Number.isFinite(parsed) ? parsed : 0
 }
-
-const themeVars = computed(() => ({
-  '--accent-color': posCustomization.value?.accentColor || '#f2b138',
-}))
 
 function getProductSalePrice(product) {
   const productType = String(product?.product_type || 'normal').toLowerCase()
@@ -904,12 +867,6 @@ async function confirmSale() {
   }
 }
 
-async function handleLogout() {
-  await window.posAPI.logout()
-  clearSessionState()
-  window.location.reload()
-}
-
 onMounted(async () => {
   await loadProducts()
   await checkCashStatus()
@@ -922,103 +879,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.pos-layout {
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  min-height: 100vh;
-  background: #0f1115;
-  color: #f5f5f5;
-}
-
-.sidebar {
-  background:
-    radial-gradient(circle at top left, rgba(242, 177, 56, 0.18), transparent 28%),
-    linear-gradient(180deg, #151515 0%, #111827 100%);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 24px 18px;
-  position: relative;
-  overflow: hidden;
-}
-
-.sidebar::after {
-  content: '';
-  position: absolute;
-  inset: 14px 12px 14px 14px;
-  border-radius: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  pointer-events: none;
-}
-
-.brand,
-.menu-block {
-  position: relative;
-  z-index: 1;
-}
-
-.brand-logo {
-  width: 84px;
-  height: 84px;
-  object-fit: cover;
-  border-radius: 20px;
-  margin-bottom: 12px;
-  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  animation: floatBrand 5s ease-in-out infinite;
-}
-
-.brand h1 {
-  margin: 0;
-  font-size: 28px;
-  color: var(--accent-color, #f2b138);
-}
-
-.brand p {
-  margin-top: 6px;
-  color: #bdbdbd;
-}
-
-.session-caption {
-  display: block;
-  margin-top: 10px;
-  color: #d4d4d8;
-}
-
-.menu-block {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  margin-top: 32px;
-}
-
-.menu-btn {
-  border: none;
-  border-radius: 14px;
-  padding: 14px;
-  text-align: left;
-  background: rgba(38, 38, 38, 0.84);
-  color: #f5f5f5;
-  cursor: pointer;
-  font-size: 15px;
-  transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
-}
-
-.menu-btn.active,
-.menu-btn:hover {
-  background: var(--accent-color, #f29a2e);
-  color: #111;
-  font-weight: 700;
-  transform: translateX(4px);
-}
-
-.logout-btn {
-  background: #7f1d1d;
-}
-
-.main-content {
+.pos-page {
   padding: 20px;
-  background:
-    radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 20%),
-    radial-gradient(circle at bottom left, rgba(242, 177, 56, 0.08), transparent 24%);
+  min-height: 100vh;
+  color: #f5f5f5;
 }
 
 .topbar {
@@ -1467,19 +1331,19 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.pos-layout.compact .products-grid {
+.pos-page.compact .products-grid {
   gap: 10px;
 }
 
-.pos-layout.compact .product-image {
+.pos-page.compact .product-image {
   height: 92px;
 }
 
-.pos-layout.compact .product-info {
+.pos-page.compact .product-info {
   padding: 10px;
 }
 
-.pos-layout.compact .product-info h3 {
+.pos-page.compact .product-info h3 {
   font-size: 13px;
 }
 
@@ -1678,17 +1542,6 @@ onMounted(async () => {
   transform: translateY(10px) scale(0.98);
 }
 
-@keyframes floatBrand {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-
-  50% {
-    transform: translateY(-6px);
-  }
-}
-
 @keyframes surfaceEnter {
   from {
     opacity: 0;
@@ -1753,15 +1606,6 @@ onMounted(async () => {
 }
 
 @media (max-width: 900px) {
-  .pos-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .sidebar {
-    border-right: none;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
   .hero-banner {
     flex-direction: column;
     align-items: flex-start;

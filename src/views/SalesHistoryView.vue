@@ -5,10 +5,6 @@
         <h1>Historial de ventas</h1>
         <p>Ultimas 200 ventas activas con opcion de editar o eliminar</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section class="history-grid">

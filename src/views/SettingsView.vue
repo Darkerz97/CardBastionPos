@@ -5,10 +5,6 @@
         <h1>Configuracion del POS</h1>
         <p>Personaliza textos, color principal y comportamiento visual</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section class="settings-grid">

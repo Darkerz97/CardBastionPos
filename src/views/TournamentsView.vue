@@ -5,8 +5,6 @@
         <h1>Torneos</h1>
         <p>Pareos, mesas, resultados, cierre y ranking por temporada</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">Volver al POS</button>
     </header>
 
     <section class="main-grid">

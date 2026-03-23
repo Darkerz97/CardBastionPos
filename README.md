@@ -18,6 +18,9 @@ Repositorio inicializado el 2026-03-21.
 - Personalización visual del POS desde pantalla de configuración.
 - Retiros de efectivo en caja con motivo, firma y reflejo en el efectivo esperado.
 - Edición temporal de precio por producto solo para el cobro actual.
+- Menú lateral persistente en todas las vistas autenticadas.
+- Limpieza de botones redundantes de "volver al POS" dentro de módulos.
+- SKU inicial secuencial en productos con formato `CB-00000`.
 
 ## Funcionalidades nuevas
 
@@ -61,6 +64,13 @@ Repositorio inicializado el 2026-03-21.
 ### POS
 - Se mejoró la experiencia visual con animaciones y personalización.
 - Se puede editar el precio de un producto en el carrito sin modificar el precio maestro del catálogo.
+- El menú lateral queda fijo en todas las vistas con la misma navegación.
+- Se retiraron los botones internos para volver al POS cuando la navegación lateral ya está visible.
+
+### Productos
+- Al crear un producto nuevo, el SKU se propone automáticamente con formato secuencial `CB-00000`.
+- El consecutivo toma en cuenta productos activos e inactivos para evitar repetir claves.
+- El usuario todavía puede editar manualmente el SKU antes de guardar.
 
 ## Acceso inicial
 - Usuario: `admin`

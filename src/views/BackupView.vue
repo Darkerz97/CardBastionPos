@@ -5,10 +5,6 @@
         <h1>Respaldo</h1>
         <p>Protege y restaura la base de datos local del POS</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section class="backup-grid">

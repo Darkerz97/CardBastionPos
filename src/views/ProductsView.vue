@@ -9,7 +9,6 @@
         <button class="secondary-btn" @click="handleExportTemplate">Plantilla</button>
         <button class="secondary-btn" @click="handleImportExcel">Importar</button>
         <button class="secondary-btn" @click="handleBatchUpdateSingles">SCG lote</button>
-        <button class="back-btn" @click="$router.push('/')">Volver</button>
       </div>
     </header>
 
@@ -32,7 +31,7 @@
               <option v-for="option in catalogOptions.categories" :key="option" :value="option" />
             </datalist>
           </div>
-          <div><label>SKU</label><input v-model="form.sku" class="input" /></div>
+          <div><label>SKU</label><input v-model="form.sku" class="input" placeholder="CB-00001" /></div>
           <div><label>Codigo barras</label><input v-model="form.barcode" class="input" /></div>
           <div class="full"><label>Nombre</label><input v-model="form.name" class="input" /></div>
 
@@ -329,17 +328,73 @@ function buildProductSearchText(product){
     product?.game,
   ].map((value) => String(value || '').toLowerCase()).join(' ')
 }
+function buildDefaultForm(nextSku = ''){
+  return {
+    product_type:'normal',
+    sku:nextSku,
+    barcode:'',
+    name:'',
+    category:'',
+    price:0,
+    cost:0,
+    stock:0,
+    min_stock:0,
+    image:'',
+    game:'',
+    card_name:'',
+    set_name:'',
+    set_code:'',
+    collector_number:'',
+    finish:'',
+    language:'',
+    card_condition:'',
+    scryfall_id:'',
+    starcity_url:'',
+    starcity_variant_key:'',
+    starcity_price_usd:0,
+    starcity_last_sync:null,
+    pricing_mode:'manual',
+    pricing_formula_type:'',
+    pricing_formula_value:0,
+  }
+}
+function getNextSequentialSku(){
+  const skuPattern = /^CB-(\d{5})$/i
+  const allProducts = [...(products.value || []), ...(inactiveProducts.value || [])]
+  const highestNumber = allProducts.reduce((maxValue, product) => {
+    const match = String(product?.sku || '').trim().match(skuPattern)
+    if (!match) return maxValue
+    return Math.max(maxValue, Number(match[1] || 0))
+  }, 0)
+  return `CB-${String(highestNumber + 1).padStart(5, '0')}`
+}
 function clearMessages(){ message.value=''; errorMessage.value='' }
 function clearLinkSearchState(){ linkSearchLoading.value=false; linkSearchMessage.value=''; linkSearchError.value=''; linkImportLoading.value=false }
-function cancelEdit(){ editingId.value=null; showSingleDetails.value=false; Object.assign(form,{ product_type:'normal', sku:'', barcode:'', name:'', category:'', price:0, cost:0, stock:0, min_stock:0, image:'', game:'', card_name:'', set_name:'', set_code:'', collector_number:'', finish:'', language:'', card_condition:'', scryfall_id:'', starcity_url:'', starcity_variant_key:'', starcity_price_usd:0, starcity_last_sync:null, pricing_mode:'manual', pricing_formula_type:'', pricing_formula_value:0 }) }
-async function loadProducts(){ try{ const [a,b]=await Promise.all([window.posAPI.getProducts(), window.posAPI.getInactiveProducts()]); products.value=a||[]; inactiveProducts.value=b||[] }catch(e){ products.value=[]; inactiveProducts.value=[] } }
+function resetCreateForm(){ editingId.value=null; showSingleDetails.value=false; Object.assign(form, buildDefaultForm(getNextSequentialSku())) }
+function cancelEdit(){ resetCreateForm() }
+async function loadProducts(){
+  try{
+    const [a,b]=await Promise.all([window.posAPI.getProducts(), window.posAPI.getInactiveProducts()])
+    products.value=a||[]
+    inactiveProducts.value=b||[]
+    if(!editingId.value){
+      form.sku=getNextSequentialSku()
+    }
+  }catch(e){
+    products.value=[]
+    inactiveProducts.value=[]
+    if(!editingId.value){
+      form.sku='CB-00001'
+    }
+  }
+}
 async function loadCatalogOptions(){ try{ const response=await window.posAPI.getProductCatalogOptions(); Object.assign(catalogOptions,{ categories:response?.categories||[], games:response?.games||[], sets:response?.sets||[], finishes:response?.finishes||[], languages:response?.languages||[], conditions:response?.conditions||[] }) }catch(e){ Object.assign(catalogOptions,{ categories:[], games:[], sets:[], finishes:[], languages:[], conditions:[] }) } }
 async function loadPricingConfig(){ try{ const r=await window.posAPI.getSinglesPricingConfig(); if(r?.config) Object.assign(pricingConfig,{ exchangeRate:Number(r.config.exchangeRate||18), multiplier:Number(r.config.multiplier||1), fixedMarkup:Number(r.config.fixedMarkup||0), roundingMode:String(r.config.roundingMode||'none') }) }catch(e){} }
 async function savePricingConfig(){ try{ clearMessages(); const r=await window.posAPI.updateSinglesPricingConfig(pricingConfig); if(r?.success) message.value='Configuracion guardada.' }catch(e){ errorMessage.value=e?.message||'Error guardando config.' } }
 async function handleSelectImage(){ try{ const r=await window.posAPI.selectProductImage(); if(r?.success) form.image=r.fileName||'' }catch(e){ errorMessage.value=e?.message||'Error seleccionando imagen.' } }
 async function selectProduct(p){ editingId.value=p.id; showSingleDetails.value=String(p?.product_type||'normal').toLowerCase()==='single'; Object.assign(form,p,{ product_type:p.product_type||'normal', pricing_mode:p.pricing_mode||'manual' }) }
 function payloadFromForm(){ return { ...form, price:Number(form.price||0), cost:Number(form.cost||0), stock:Number(form.stock||0), min_stock:Number(form.min_stock||0), starcity_price_usd:Number(form.starcity_price_usd||0), pricing_formula_value:Number(form.pricing_formula_value||0) } }
-async function handleSaveProduct(){ try{ clearMessages(); let r=null; const payload=payloadFromForm(); if(editingId.value){ r=form.product_type==='single' ? await window.posAPI.updateSingle({ id:editingId.value, ...payload }) : await window.posAPI.updateProduct({ id:editingId.value, ...payload }) } else { r=form.product_type==='single' ? await window.posAPI.createSingle(payload) : await window.posAPI.createProduct(payload) } if(r?.success){ message.value='Guardado correctamente.'; cancelEdit(); await Promise.all([loadProducts(), loadCatalogOptions()]) } }catch(e){ errorMessage.value=e?.message||'No se pudo guardar.' } }
+async function handleSaveProduct(){ try{ clearMessages(); let r=null; const payload=payloadFromForm(); if(editingId.value){ r=form.product_type==='single' ? await window.posAPI.updateSingle({ id:editingId.value, ...payload }) : await window.posAPI.updateProduct({ id:editingId.value, ...payload }) } else { r=form.product_type==='single' ? await window.posAPI.createSingle(payload) : await window.posAPI.createProduct(payload) } if(r?.success){ message.value='Guardado correctamente.'; await Promise.all([loadProducts(), loadCatalogOptions()]); cancelEdit() } }catch(e){ errorMessage.value=e?.message||'No se pudo guardar.' } }
 async function handleImportExcel(){ try{ clearMessages(); const r=await window.posAPI.importProductsFromExcel(); if(r?.success) { message.value=`Importado. Nuevos:${r.created} Actualizados:${r.updated}`; await Promise.all([loadProducts(), loadCatalogOptions()]) } }catch(e){ errorMessage.value=e?.message||'Error importando.' } }
 async function handleExportTemplate(){ try{ clearMessages(); const r=await window.posAPI.exportProductTemplate(); if(r?.success) message.value=`Plantilla: ${r.filePath}` }catch(e){ errorMessage.value=e?.message||'Error exportando.' } }
 async function handleDeactivateProduct(p){ if(!window.confirm(`Desactivar ${p.name}?`)) return; try{ await window.posAPI.deactivateProduct(p.id); await Promise.all([loadProducts(), loadCatalogOptions()]) }catch(e){ errorMessage.value=e?.message||'Error desactivando.' } }
@@ -439,7 +494,7 @@ async function handleImportStarCityUrl(){
   }
 }
 async function applyLinkResult(r){ try{ form.starcity_url=r.url||''; form.starcity_variant_key=r.variantKey||''; form.starcity_price_usd=Number(r.priceUsd||0); form.starcity_last_sync=new Date().toISOString(); if(editingId.value){ await window.posAPI.linkSingleStarCity({ productId:Number(editingId.value), url:r.url, variantKey:r.variantKey, priceUsd:Number(r.priceUsd||0) }); await loadProducts(); message.value='Vinculado.' } else { message.value='Vinculo listo, guarda producto.' } linkModal.open=false }catch(e){ errorMessage.value=e?.message||'Error vinculando.' } }
-onMounted(async()=>{ await Promise.all([loadProducts(), loadPricingConfig(), loadCatalogOptions()]) })
+onMounted(async()=>{ resetCreateForm(); await Promise.all([loadProducts(), loadPricingConfig(), loadCatalogOptions()]) })
 </script>
 
 <style scoped>

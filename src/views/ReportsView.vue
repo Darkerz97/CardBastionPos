@@ -5,10 +5,6 @@
         <h1>Reportes</h1>
         <p>Ventas e inventario en un solo panel</p>
       </div>
-
-      <button class="back-btn" @click="$router.push('/')">
-        Volver al POS
-      </button>
     </header>
 
     <section class="filters-card">

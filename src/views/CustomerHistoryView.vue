@@ -5,9 +5,6 @@
         <h1>Historial por cliente</h1>
         <p>Consulta compras, credito y movimientos del cliente</p>
       </div>
-      <button class="back-btn" @click="$router.push('/')">
-        Volver a POS
-      </button>
       <button class="back-btn" @click="$router.push('/customers')">
         Volver a clientes
       </button>
@@ -127,6 +124,21 @@
               <span>Ultima visita</span>
               <strong>{{ formatDate(historyData.summary.lastPurchaseAt) || 'Sin compras' }}</strong>
             </div>
+
+            <div class="summary-card">
+              <span>Saldo preventas</span>
+              <strong>${{ formatMoney(historyData.summary.preorderPendingBalance || 0) }}</strong>
+            </div>
+
+            <div class="summary-card">
+              <span>Preventas activas/parciales</span>
+              <strong>{{ (historyData.summary.preorderActive || 0) + (historyData.summary.preorderPartial || 0) }}</strong>
+            </div>
+
+            <div class="summary-card">
+              <span>Preventas pagadas/surtidas</span>
+              <strong>{{ (historyData.summary.preorderPaid || 0) + (historyData.summary.preorderFulfilled || 0) }}</strong>
+            </div>
           </div>
 
           <div class="sales-section">
@@ -224,6 +236,68 @@
 
             <div v-else class="empty-state small-empty">
               Este cliente aun no tiene abonos registrados.
+            </div>
+          </div>
+
+          <div class="sales-section">
+            <div class="section-header">
+              <h3>Preventas</h3>
+              <span>{{ historyData.preorders?.length || 0 }} preventas</span>
+            </div>
+
+            <div v-if="historyData.preorders?.length" class="sales-list">
+              <div
+                v-for="preorder in historyData.preorders"
+                :key="preorder.id"
+                class="sale-row"
+              >
+                <div>
+                  <strong>{{ preorder.preorderNumber }}</strong>
+                  <p>{{ formatDate(preorder.createdAt) }}</p>
+                  <small>{{ preorder.status }}</small>
+                </div>
+
+                <div class="sale-meta">
+                  <span>Total: ${{ formatMoney(preorder.totalAmount) }}</span>
+                  <span>Pagado: ${{ formatMoney(preorder.amountPaid) }}</span>
+                  <span>Pendiente: ${{ formatMoney(preorder.amountDue) }}</span>
+                  <small>Salida: {{ formatDate(preorder.releaseDate) || 'N/D' }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-state small-empty">
+              Este cliente aun no tiene preventas.
+            </div>
+          </div>
+
+          <div class="sales-section">
+            <div class="section-header">
+              <h3>Abonos de preventa</h3>
+              <span>{{ historyData.preorderPayments?.length || 0 }} abonos</span>
+            </div>
+
+            <div v-if="historyData.preorderPayments?.length" class="sales-list">
+              <div
+                v-for="payment in historyData.preorderPayments"
+                :key="payment.id"
+                class="sale-row"
+              >
+                <div>
+                  <strong>{{ payment.preorderNumber }}</strong>
+                  <p>{{ formatDate(payment.createdAt) }}</p>
+                  <small>{{ formatPayment(payment.paymentMethod) }}</small>
+                </div>
+
+                <div class="sale-meta">
+                  <span>Monto: ${{ formatMoney(payment.amount) }}</span>
+                  <small>{{ payment.notes || 'Sin nota' }}</small>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="empty-state small-empty">
+              Este cliente aun no tiene abonos de preventa.
             </div>
           </div>
         </div>
