@@ -170,6 +170,47 @@ function registerCustomerHandlers() {
       ORDER BY sp.created_at DESC, sp.id DESC
     `).all(id)
 
+    const preorders = db.prepare(`
+      SELECT
+        id,
+        preorder_number,
+        status,
+        total_amount,
+        amount_paid,
+        amount_due,
+        release_date,
+        created_at
+      FROM preorders
+      WHERE customer_id = ?
+      ORDER BY created_at DESC
+    `).all(id)
+
+    const preorderPayments = db.prepare(`
+      SELECT
+        pp.id,
+        pp.preorder_id,
+        p.preorder_number,
+        pp.amount,
+        pp.payment_method,
+        pp.notes,
+        pp.created_at
+      FROM preorder_payments pp
+      INNER JOIN preorders p ON p.id = pp.preorder_id
+      WHERE pp.customer_id = ?
+      ORDER BY pp.created_at DESC, pp.id DESC
+    `).all(id)
+
+    const preorderSummary = db.prepare(`
+      SELECT
+        COALESCE(SUM(amount_due), 0) as preorder_pending_balance,
+        COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) as preorder_active,
+        COALESCE(SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END), 0) as preorder_partial,
+        COALESCE(SUM(CASE WHEN status = 'paid' THEN 1 ELSE 0 END), 0) as preorder_paid,
+        COALESCE(SUM(CASE WHEN status = 'fulfilled' THEN 1 ELSE 0 END), 0) as preorder_fulfilled
+      FROM preorders
+      WHERE customer_id = ?
+    `).get(id)
+
     const creditMovements = db.prepare(`
       SELECT
         id,
@@ -209,6 +250,11 @@ function registerCustomerHandlers() {
         totalPendingBalance: Number(summary?.total_pending_balance || 0),
         totalCreditEarned: Number(creditSummary?.total_earned || 0),
         totalCreditMovementUsed: Number(creditSummary?.total_used || 0),
+        preorderPendingBalance: Number(preorderSummary?.preorder_pending_balance || 0),
+        preorderActive: Number(preorderSummary?.preorder_active || 0),
+        preorderPartial: Number(preorderSummary?.preorder_partial || 0),
+        preorderPaid: Number(preorderSummary?.preorder_paid || 0),
+        preorderFulfilled: Number(preorderSummary?.preorder_fulfilled || 0),
         averageTicket: Number(summary?.average_ticket || 0),
         lastPurchaseAt: String(summary?.last_purchase_at || ''),
       },
@@ -239,6 +285,25 @@ function registerCustomerHandlers() {
         paymentMethod: String(row.payment_method || ''),
         notes: String(row.notes || ''),
         isInitial: Number(row.is_initial || 0) === 1,
+        createdAt: String(row.created_at || ''),
+      })),
+      preorders: (preorders || []).map(row => ({
+        id: Number(row.id),
+        preorderNumber: String(row.preorder_number || ''),
+        status: String(row.status || ''),
+        totalAmount: Number(row.total_amount || 0),
+        amountPaid: Number(row.amount_paid || 0),
+        amountDue: Number(row.amount_due || 0),
+        releaseDate: String(row.release_date || ''),
+        createdAt: String(row.created_at || ''),
+      })),
+      preorderPayments: (preorderPayments || []).map(row => ({
+        id: Number(row.id),
+        preorderId: Number(row.preorder_id),
+        preorderNumber: String(row.preorder_number || ''),
+        amount: Number(row.amount || 0),
+        paymentMethod: String(row.payment_method || ''),
+        notes: String(row.notes || ''),
         createdAt: String(row.created_at || ''),
       })),
       creditMovements: (creditMovements || []).map(row => ({

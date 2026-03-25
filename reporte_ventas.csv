@@ -1,21 +1,3 @@
-sale_id,folio,created_at,payment_method,subtotal,discount,total,credit_used,cash_received,change_given,customer_name,product_name,sku,qty,unit_price,line_total
-45,CB-20260321-013159,2026-03-21 07:31:59,cash,2500,0,2150,350,2150,0,damian tenorio,"""MTG TMT DRAFT NIGHT ENMagic the Gathering: Teenage Mutant Ninja Turtles Draft Night PIEZA - INGLÉS""",sk152,1,2500,2500
-44,CB-20260321-012856,2026-03-21 07:28:56,cash,150,0,0,150,150,150,damian tenorio,"""MTG TMT Booster TMNT",sk153,1,150,150
-43,CB-20260320-234448,2026-03-21 05:44:48,cash,150,0,150,0,150,0,damian tenorio,"""MTG TMT Booster TMNT",sk153,1,150,150
-42,CB-20260318-221541,2026-03-19 04:15:41,cash,175,0,175,0,175,0,damian tenorio,Arizona grande te verde,sk16,1,25,25
-42,CB-20260318-221541,2026-03-19 04:15:41,cash,175,0,175,0,175,0,damian tenorio,"""MTG TMT Booster TMNT",sk153,1,150,150
-41,CB-20260318-170226,2026-03-18 23:02:26,cash,1910,0,1910,0,1910,0,,Last March of the ents,Carta,1,1910,1910
-40,CB-20260318-164410,2026-03-18 22:44:10,cash,150,0,150,0,150,0,,"""MTG TMT Booster TMNT",sk153,1,150,150
-39,CB-20260318-164236,2026-03-18 22:42:36,cash,7500,0,7500,0,9000,1500,Aaron Garcia,"""MTG TMT DRAFT NIGHT ENMagic the Gathering: Teenage Mutant Ninja Turtles Draft Night PIEZA - INGLÉS""",sk152,3,2500,7500
-38,CB-20260318-111604,2026-03-18 17:16:04,cash,600,0,600,0,600,0,Aaron Garcia,"""MTG TMT Booster TMNT",sk153,4,150,600
-37,CB-20260318-111514,2026-03-18 17:15:14,cash,1350,0,1350,0,1350,0,Aaron Garcia,"""MTG TMT BUNDLE ENMagic the Gathering: Teenage Mutant Ninja Turtles Bundle PIEZA - INGLÉS""",sk150,1,1350,1350
-36,CB-20260318-105113,2026-03-18 16:51:13,cash,1350,0,1350,0,1350,0,damian tenorio,"""MTG TMT BUNDLE ENMagic the Gathering: Teenage Mutant Ninja Turtles Bundle PIEZA - INGLÉS""",sk150,1,1350,1350
-35,CB-20260318-103321,2026-03-18 16:33:21,cash,150,0,150,0,150,0,,"""MTG TMT Booster TMNT",sk153,1,150,150
-34,CB-20260318-100637,2026-03-18 16:06:37,cash,150,0,150,0,150,0,,"""MTG TMT Booster TMNT",sk153,1,150,150
-33,CB-20260317-223922,2026-03-18 04:39:22,cash,5000,0,5000,0,8000,3000,,"""MTG TMT DRAFT NIGHT ENMagic the Gathering: Teenage Mutant Ninja Turtles Draft Night PIEZA - INGLÉS""",sk152,2,2500,5000
-32,CB-20260317-203007,2026-03-18 02:30:07,cash,9000,0,9000,0,9000,0,,"""MTG TMT COLLECTOR BOOSTER ENMagic the Gathering: Teenage Mutant Ninja Turtles Collector Booster DISPLAY - INGLÉS""",sk148,1,9000,9000
-31,CB-20260317-114201,2026-03-17 17:42:01,cash,1000,0,1000,0,1000,0,,"""MTG TMT TEAM UP ENMagic the Gathering: Teenage Mutant Ninja Turtles Team Up """,sk151,1,1000,1000
-30,CB-20260317-010806,2026-03-17 07:08:06,cash,9000,0,9000,0,10000,1000,,"""MTG TMT COLLECTOR BOOSTER ENMagic the Gathering: Teenage Mutant Ninja Turtles Collector Booster DISPLAY - INGLÉS""",sk148,1,9000,9000
-29,CB-20260317-005250,2026-03-17 06:52:50,cash,4000,0,4000,0,4000,0,,"""MTG TMT PLAY BOOSTER ENMagic the Gathering: Teenage Mutant Ninja Turtles Play Booster DISPLAY - INGLÉS""",sk147,1,4000,4000
-28,CB-20260317-005018,2026-03-17 06:50:18,cash,4500,0,4500,0,4500,0,,"""MTG TMT DECK ENMagic the Gathering: Teenage Mutant Ninja Turtles Deck""",sk149,3,1500,4500
-27,CB-20260317-001452,2026-03-17 06:14:52,cash,60,0,60,0,60,0,,Torneo MTG -  Torneo 60,sk141,1,60,60
+sale_id,folio,created_at,payment_method,subtotal,discount,total,credit_used,amount_paid,amount_due,payment_status,cash_received,change_given,customer_name,product_name,sku,qty,unit_price,line_total
+3,CB-20260322-225019,2026-03-23 04:50:19,transfer,89,0,89,0,0,89,pending,0,0,damian,Micas Standard Card Bastion,ACC-001,1,89,89
+2,CB-20260322-224823,2026-03-23 04:48:23,cash,150,0,150,0,150,0,paid,150,0,damian,Booster Pokemon Surging Sparks,PKM-001,1,150,150

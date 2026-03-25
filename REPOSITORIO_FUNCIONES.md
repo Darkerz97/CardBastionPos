@@ -1,6 +1,6 @@
 ﻿# Repositorio de Funciones
 
-Fecha de corte: 2026-03-22
+Fecha de corte: 2026-03-25
 
 Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `electron/preload.cjs`).
 
@@ -160,7 +160,7 @@ Si se agregan nuevas funciones en `electron/preload.cjs`, este archivo debe actu
 
 ---
 
-## Cambios Implementados (2026-03-22)
+## Cambios Implementados (2026-03-25)
 
 ### Usuarios, permisos y sesión
 - Se agregó autenticación local por usuario con NIP.
@@ -216,3 +216,18 @@ Si se agregan nuevas funciones en `electron/preload.cjs`, este archivo debe actu
   - finish
   - idioma
   - condición
+
+### Preventas
+- Se consolidó el módulo de preventas con funciones para listado, detalle, creación, edición, cancelación, abonos, reapertura y surtido.
+- Se añadieron consultas rápidas para preventas pendientes, pagadas y vencidas.
+- Se expusieron funciones para reenvío de correos de preventa creada, abono y liquidación.
+- El resumen de preventas también queda disponible para dashboards y vistas operativas.
+
+### Historial de cliente
+- `getCustomerById` ahora incluye preventas, pagos de preventa y resumen agregado por estado para enriquecer la ficha del cliente.
+
+### Empaquetado
+- El proyecto ya incluye scripts de distribución para Windows:
+  - `npm run dist`
+  - `npm run dist:dir`
+- Se agregó la configuración necesaria de `electron-builder` para generar el ejecutable de escritorio.

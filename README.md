@@ -21,6 +21,9 @@ Repositorio inicializado el 2026-03-21.
 - Menú lateral persistente en todas las vistas autenticadas.
 - Limpieza de botones redundantes de "volver al POS" dentro de módulos.
 - SKU inicial secuencial en productos con formato `CB-00000`.
+- Módulo completo de preventas con abonos, liquidación, surtido y correos.
+- Historial de cliente enriquecido con resumen y movimientos de preventas.
+- Empaquetado de escritorio para Windows con `electron-builder`.
 
 ## Funcionalidades nuevas
 
@@ -71,6 +74,38 @@ Repositorio inicializado el 2026-03-21.
 - Al crear un producto nuevo, el SKU se propone automáticamente con formato secuencial `CB-00000`.
 - El consecutivo toma en cuenta productos activos e inactivos para evitar repetir claves.
 - El usuario todavía puede editar manualmente el SKU antes de guardar.
+
+### Preventas
+- Se agregó una vista dedicada para crear y consultar preventas.
+- Cada preventa permite:
+  - capturar cliente,
+  - definir salida estimada,
+  - agregar items,
+  - registrar abono inicial,
+  - consultar detalle y pagos,
+  - marcar como surtida o cancelada.
+- El backend ya expone operaciones para:
+  - listado con filtros,
+  - detalle,
+  - creación,
+  - actualización,
+  - cancelación,
+  - abonos,
+  - reapertura,
+  - surtido,
+  - resúmenes y consultas por cliente.
+- También se registran y reenvían correos de preventa creada, abono y liquidación.
+
+### Historial de cliente
+- El historial por cliente ahora muestra preventas, pagos de preventa y métricas agregadas de saldo pendiente y estados.
+
+### Ejecutable de Windows
+- Se agregó configuración de `electron-builder` en `package.json`.
+- Nuevos scripts disponibles:
+  - `npm run dist`
+  - `npm run dist:dir`
+- Para que la app empaquetada resuelva correctamente los assets, Vite ahora compila con `base: './'`.
+- El ejecutable generado queda en `release/win-unpacked/Card Bastion POS.exe`.
 
 ## Acceso inicial
 - Usuario: `admin`

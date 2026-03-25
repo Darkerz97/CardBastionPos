@@ -1,6 +1,6 @@
 ﻿# Documentacion GitHub
 
-Fecha: 2026-03-22
+Fecha: 2026-03-25
 
 ## Alcance de esta actualización
 
@@ -22,6 +22,9 @@ Se integró una capa completa de control operativo para el POS:
 - sidebar persistente en todas las vistas autenticadas
 - limpieza de botones internos para volver al POS
 - SKU secuencial sugerido al crear productos
+- módulo completo de preventas con vista, IPC, resumen y correos
+- historial de clientes enriquecido con preventas y pagos asociados
+- empaquetado de Windows con Electron Builder
 
 ## Usuarios y permisos
 
@@ -214,11 +217,75 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - El siguiente valor se calcula a partir del mayor consecutivo encontrado en productos activos e inactivos.
 - El campo sigue siendo editable antes de guardar.
 
+## Preventas
+
+### Qué se agregó
+
+- Vista `Preventas` dentro del flujo autenticado.
+- Handlers IPC dedicados en `electron/ipc/preorders.cjs`.
+- Exposición completa en `window.posAPI` para:
+  - listado,
+  - detalle,
+  - alta,
+  - edición,
+  - cancelación,
+  - abonos,
+  - reapertura,
+  - surtido,
+  - resumen operativo,
+  - consultas de pendientes, pagadas y vencidas,
+  - reenvío de correos.
+
+### Flujo operativo
+
+- La preventa se crea con cliente, items, notas, fecha estimada y abono inicial opcional.
+- El estado se calcula automáticamente entre `active`, `partial`, `paid`, `fulfilled` y `cancelled`.
+- Los abonos actualizan saldo pendiente y generan historial de cambios.
+- El surtido puede descontar stock y opcionalmente ligar una venta de entrega.
+- Se guarda bitácora interna del estado y log de correos enviados.
+
+### Correos
+
+- Se soportan plantillas para:
+  - preventa creada,
+  - abono registrado,
+  - preventa liquidada,
+  - preventa surtida.
+- El modo de envío puede trabajar con webhook configurable o solo registrar en log.
+
+## Historial por cliente
+
+### Qué cambió
+
+- `getCustomerById` ahora devuelve:
+  - listado de preventas del cliente,
+  - pagos de preventa,
+  - resumen agregado de saldo y conteos por estado.
+- Esto permite que la vista de historial muestre ventas, fiado, crédito y preventas en un solo lugar.
+
+## Ejecutable de Windows
+
+### Qué cambió
+
+- Se agregó `electron-builder` a `devDependencies`.
+- Se definieron scripts:
+  - `npm run dist`
+  - `npm run dist:dir`
+- Se añadió configuración `build` en `package.json` para generar salida Windows x64 en `release/`.
+- `vite.config.js` ahora usa `base: './'` para que la app empaquetada cargue assets locales correctamente.
+
+### Resultado actual
+
+- El build deja lista la carpeta `release/win-unpacked`.
+- El ejecutable principal queda en `release/win-unpacked/Card Bastion POS.exe`.
+- El instalador NSIS puede requerir privilegios adicionales de Windows por el paso de `winCodeSign`.
+
 ## Archivos principales tocados
 
 - `electron/database/init.cjs`
 - `electron/main.cjs`
 - `electron/preload.cjs`
+- `electron/ipc/preorders.cjs`
 - `electron/ipc/users.cjs`
 - `electron/ipc/sales-service.cjs`
 - `electron/ipc/history.cjs`
@@ -227,6 +294,7 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `electron/ipc/backup.cjs`
 - `electron/ipc/reports.cjs`
 - `electron/ipc/products.cjs`
+- `electron/ipc/customers.cjs`
 - `src/App.vue`
 - `src/session.js`
 - `src/router/index.js`
@@ -240,3 +308,6 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `src/views/BackupView.vue`
 - `src/views/ReportsView.vue`
 - `src/views/SettingsView.vue`
+- `src/views/PreordersView.vue`
+- `vite.config.js`
+- `package.json`

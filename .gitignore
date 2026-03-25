@@ -11,6 +11,12 @@ node_modules
 dist
 dist-ssr
 *.local
+release/
+*.sqlite
+*.cardbastion-backup/
+*.pdf
+reporte_*.csv
+reporte_*.xlsx
 
 # Editor directories and files
 .vscode/*

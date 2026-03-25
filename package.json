@@ -8,7 +8,9 @@
     "dev": "vite",
     "electron": "electron .",
     "electron:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "vite build"
+    "build": "vite build",
+    "dist": "npm run build && electron-builder --win nsis",
+    "dist:dir": "npm run build && electron-builder --win dir"
   },
   "dependencies": {
     "better-sqlite3": "^12.8.0",
@@ -22,7 +24,41 @@
     "@vitejs/plugin-vue": "^6.0.5",
     "concurrently": "^9.2.1",
     "electron": "^41.0.2",
+    "electron-builder": "^26.0.12",
     "vite": "^8.0.0",
     "wait-on": "^9.0.4"
+  },
+  "build": {
+    "appId": "com.cardbastion.pos",
+    "productName": "Card Bastion POS",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "extraMetadata": {
+      "main": "electron/main.cjs"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }
