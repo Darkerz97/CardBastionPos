@@ -201,7 +201,7 @@
                 </div>
 
                 <div class="qty-controls">
-                  <button @click="cart.decreaseQty(item.id)">−</button>
+                  <button @click="decreaseCartItem(item.id)">−</button>
                   <span>{{ item.qty }}</span>
                   <button @click="increaseCartItem(item.id)">+</button>
                 </div>
@@ -212,7 +212,7 @@
                 <small v-if="item.customPrice" class="custom-price-badge">
                   Precio temporal
                 </small>
-                <button class="remove-btn" @click="cart.removeItem(item.id)">
+                <button class="remove-btn" @click="removeCartItem(item.id)">
                   Quitar
                 </button>
               </div>
@@ -421,6 +421,7 @@ const dueDate = ref('')
 const paymentNotes = ref('')
 const editingPriceId = ref(null)
 const editingPriceValue = ref('')
+let audioContext = null
 const posCustomization = ref({
   storeName: 'Card Bastion',
   posSubtitle: 'Point of Sale',
@@ -430,6 +431,73 @@ const posCustomization = ref({
   showHeroBanner: true,
   compactMode: false,
 })
+
+function getAudioContext() {
+  if (typeof window === 'undefined') return null
+
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext
+  if (!AudioContextClass) return null
+
+  if (!audioContext) {
+    audioContext = new AudioContextClass()
+  }
+
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {})
+  }
+
+  return audioContext
+}
+
+function playToneSequence(tones = []) {
+  const context = getAudioContext()
+  if (!context || !tones.length) return
+
+  const startAt = context.currentTime + 0.01
+
+  tones.forEach((tone, index) => {
+    const oscillator = context.createOscillator()
+    const gainNode = context.createGain()
+    const toneStart = startAt + (tone.delay || 0)
+    const duration = tone.duration || 0.08
+    const frequency = tone.frequency || 880
+    const volume = tone.volume || 0.06
+
+    oscillator.type = tone.type || 'sine'
+    oscillator.frequency.setValueAtTime(frequency, toneStart)
+    gainNode.gain.setValueAtTime(0.0001, toneStart)
+    gainNode.gain.exponentialRampToValueAtTime(volume, toneStart + 0.01)
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, toneStart + duration)
+
+    oscillator.connect(gainNode)
+    gainNode.connect(context.destination)
+
+    oscillator.start(toneStart)
+    oscillator.stop(toneStart + duration + 0.02)
+  })
+}
+
+function playScanSuccessSound() {
+  playToneSequence([
+    { frequency: 880, duration: 0.05, volume: 0.05, type: 'triangle' },
+    { frequency: 1174, duration: 0.08, delay: 0.06, volume: 0.06, type: 'triangle' },
+  ])
+}
+
+function playConfirmSound() {
+  playToneSequence([
+    { frequency: 784, duration: 0.07, volume: 0.05, type: 'sine' },
+    { frequency: 988, duration: 0.07, delay: 0.07, volume: 0.055, type: 'sine' },
+    { frequency: 1318, duration: 0.12, delay: 0.14, volume: 0.07, type: 'triangle' },
+  ])
+}
+
+function playRemoveSound() {
+  playToneSequence([
+    { frequency: 392, duration: 0.06, volume: 0.05, type: 'sawtooth' },
+    { frequency: 260, duration: 0.1, delay: 0.05, volume: 0.045, type: 'sawtooth' },
+  ])
+}
 
 async function handleCustomerSearch() {
   if (!customerSearch.value.trim()) {
@@ -556,7 +624,10 @@ function addToCart(product) {
     setTimeout(() => {
       cartMessage.value = ''
     }, 2500)
+    return
   }
+
+  playScanSuccessSound()
 }
 
 function increaseCartItem(productId) {
@@ -567,7 +638,30 @@ function increaseCartItem(productId) {
     setTimeout(() => {
       cartMessage.value = ''
     }, 2500)
+    return
   }
+
+  playScanSuccessSound()
+}
+
+function decreaseCartItem(productId) {
+  const item = cart.items.find((entry) => entry.id === productId)
+  if (!item) return
+
+  const shouldRemove = Number(item.qty || 0) <= 1
+  cart.decreaseQty(productId)
+
+  if (shouldRemove) {
+    playRemoveSound()
+  }
+}
+
+function removeCartItem(productId) {
+  const exists = cart.items.some((entry) => entry.id === productId)
+  if (!exists) return
+
+  cart.removeItem(productId)
+  playRemoveSound()
 }
 
 async function openPaymentModal() {
@@ -836,6 +930,7 @@ async function confirmSale() {
     }
 
     saleSuccess.value = result.folio || 'Venta guardada'
+    playConfirmSound()
     cart.clearCart()
     clearCustomer()
     search.value = ''
