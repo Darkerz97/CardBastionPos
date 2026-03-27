@@ -58,6 +58,8 @@ function buildSalesFilter(filters = {}, tableAlias = 's') {
   const params = []
 
   where.push(`${tableAlias}.deleted_at IS NULL`)
+  where.push(`COALESCE(${tableAlias}.preorder_id, 0) = 0`)
+  where.push(`COALESCE(${tableAlias}.payment_method, '') != 'preorder'`)
 
   if (dateFrom) {
     where.push(`date(${tableAlias}.created_at, 'localtime') >= ?`)

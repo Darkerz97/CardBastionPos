@@ -486,6 +486,13 @@ function initializeDatabase() {
     console.log('preorder_id ya existe en sales')
   }
 
+  try {
+    db.prepare(`ALTER TABLE preorders ADD COLUMN preorder_catalog_id INTEGER`).run()
+    console.log('Columna preorder_catalog_id agregada a preorders')
+  } catch (error) {
+    console.log('preorder_catalog_id ya existe en preorders')
+  }
+
   // Backfill seguro para ventas existentes antes de cuentas por cobrar.
   db.prepare(`
     UPDATE sales
@@ -524,10 +531,34 @@ function initializeDatabase() {
   `).run()
 
   db.prepare(`
+    CREATE TABLE IF NOT EXISTS preorder_catalog (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE,
+      name TEXT NOT NULL,
+      category TEXT,
+      description TEXT,
+      product_id INTEGER,
+      product_name TEXT,
+      sku TEXT,
+      image TEXT,
+      release_date DATETIME,
+      due_date DATETIME,
+      unit_price REAL NOT NULL DEFAULT 0,
+      quantity_default REAL NOT NULL DEFAULT 1,
+      currency TEXT DEFAULT 'MXN',
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL
+    )
+  `).run()
+
+  db.prepare(`
     CREATE TABLE IF NOT EXISTS preorders (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       preorder_number TEXT UNIQUE,
       customer_id INTEGER NOT NULL,
+      preorder_catalog_id INTEGER,
       status TEXT NOT NULL DEFAULT 'active',
       total_amount REAL NOT NULL DEFAULT 0,
       amount_paid REAL NOT NULL DEFAULT 0,
@@ -543,6 +574,7 @@ function initializeDatabase() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+      FOREIGN KEY (preorder_catalog_id) REFERENCES preorder_catalog(id) ON DELETE SET NULL,
       FOREIGN KEY (linked_sale_id) REFERENCES sales(id) ON DELETE SET NULL
     )
   `).run()

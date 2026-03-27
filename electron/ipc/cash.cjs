@@ -58,6 +58,8 @@ function getSessionSalesSummary(db, openedAt, closedAt = null) {
     FROM sales s
     LEFT JOIN payment_stats ps ON ps.sale_id = s.id
     WHERE s.deleted_at IS NULL
+      AND COALESCE(s.preorder_id, 0) = 0
+      AND COALESCE(s.payment_method, '') != 'preorder'
       AND ${rangeClause}
   `).get(...getRangeParams(openedAt, closedAt))
 }

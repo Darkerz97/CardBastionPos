@@ -54,6 +54,7 @@ contextBridge.exposeInMainWorld('posAPI', {
   // =========================
   createSale: (payload) => ipcRenderer.invoke('sales:create', payload),
   getTodaySales: () => ipcRenderer.invoke('sales:listToday'),
+  getSalesHistory: (filters) => ipcRenderer.invoke('sales:listHistory', filters),
   getSaleDetail: (saleId) => ipcRenderer.invoke('sales:getDetail', saleId),
   updateSale: (payload) => ipcRenderer.invoke('sales:update', payload),
   deleteSale: (payload) => ipcRenderer.invoke('sales:delete', payload),
@@ -168,8 +169,13 @@ contextBridge.exposeInMainWorld('posAPI', {
   // Preventas
   // =========================
   getPreorders: (filters) => ipcRenderer.invoke('preorders:list', filters),
+  getPreorderCatalog: (filters) => ipcRenderer.invoke('preorders:listCatalog', filters),
   getPreorderById: (preorderId) => ipcRenderer.invoke('preorders:getById', preorderId),
   createPreorder: (payload) => ipcRenderer.invoke('preorders:create', payload),
+  createPreorderCatalogItem: (payload) => ipcRenderer.invoke('preorders:createCatalogItem', payload),
+  updatePreorderCatalogItem: (payload) => ipcRenderer.invoke('preorders:updateCatalogItem', payload),
+  deletePreorderCatalogItem: (payload) => ipcRenderer.invoke('preorders:deleteCatalogItem', payload),
+  assignPreorderCatalogItem: (payload) => ipcRenderer.invoke('preorders:assignCatalogItem', payload),
   updatePreorder: (payload) => ipcRenderer.invoke('preorders:update', payload),
   cancelPreorder: (payload) => ipcRenderer.invoke('preorders:cancel', payload),
   addPreorderPayment: (payload) => ipcRenderer.invoke('preorders:addPayment', payload),
@@ -180,6 +186,9 @@ contextBridge.exposeInMainWorld('posAPI', {
   getPendingPreorders: () => ipcRenderer.invoke('preorders:getPending'),
   getPaidPreorders: () => ipcRenderer.invoke('preorders:getPaid'),
   getOverduePreorders: () => ipcRenderer.invoke('preorders:getOverdue'),
+  importPreordersFromExcel: () => ipcRenderer.invoke('preorders:importExcel'),
+  exportPreorderTemplate: () => ipcRenderer.invoke('preorders:exportTemplate'),
+  exportPreorderPurchaseList: () => ipcRenderer.invoke('preorders:exportPurchaseList'),
   sendPreorderCreatedEmail: (payload) => ipcRenderer.invoke('preorders:sendCreatedEmail', payload),
   sendPreorderPaymentEmail: (payload) => ipcRenderer.invoke('preorders:sendPaymentEmail', payload),
   sendPreorderPaidEmail: (payload) => ipcRenderer.invoke('preorders:sendPaidEmail', payload),

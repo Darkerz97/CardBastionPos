@@ -130,6 +130,7 @@
               <tr>
                 <th>Folio</th>
                 <th>Fecha</th>
+                <th>Articulos</th>
                 <th>Total</th>
                 <th>Pagado</th>
                 <th>Pendiente</th>
@@ -141,6 +142,7 @@
               <tr v-for="sale in customerDetail.sales" :key="sale.id">
                 <td>{{ sale.folio }}</td>
                 <td>{{ formatDate(sale.createdAt) }}</td>
+                <td>{{ sale.itemsSummary || 'Sin articulos' }}</td>
                 <td>${{ formatMoney(sale.total) }}</td>
                 <td>${{ formatMoney(sale.amountPaid) }}</td>
                 <td>${{ formatMoney(sale.amountDue) }}</td>
@@ -167,6 +169,24 @@
             <p><strong>Total:</strong> ${{ formatMoney(saleDetail.receivable.total) }}</p>
             <p><strong>Pagado:</strong> ${{ formatMoney(saleDetail.receivable.amountPaid) }}</p>
             <p><strong>Pendiente:</strong> ${{ formatMoney(saleDetail.receivable.amountDue) }}</p>
+            <p><strong>Articulos:</strong> {{ saleDetail.receivable.itemsSummary || 'Sin articulos' }}</p>
+          </div>
+
+          <div>
+            <h4>Articulos de la venta</h4>
+            <div v-if="saleDetail.items.length" class="payments-list">
+              <div v-for="item in saleDetail.items" :key="item.id" class="payment-row">
+                <div>
+                  <strong>{{ item.productName }}</strong>
+                  <p>{{ item.sku || 'Sin SKU' }}</p>
+                </div>
+                <div>
+                  <small>Cantidad: {{ item.qty }}</small>
+                  <small>${{ formatMoney(item.lineTotal) }}</small>
+                </div>
+              </div>
+            </div>
+            <div v-else class="empty-state small">Sin articulos registrados.</div>
           </div>
 
           <div>

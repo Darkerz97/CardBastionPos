@@ -3,6 +3,75 @@ const { getDb } = require('../database/db.cjs')
 const { requirePermission, getAuditActor } = require('../auth/helpers.cjs')
 const { updateSaleRecord, deleteSaleRecord } = require('./sales-service.cjs')
 
+function toSqlDate(value) {
+  if (!value) return null
+  return String(value).slice(0, 10)
+}
+
+function toText(value, fallback = '') {
+  if (value === null || value === undefined) return fallback
+  return String(value).trim()
+}
+
+function buildSalesHistoryQuery(filters = {}) {
+  const query = toText(filters.query).toLowerCase()
+  const dateFrom = toSqlDate(filters.dateFrom)
+  const dateTo = toSqlDate(filters.dateTo)
+  const where = [
+    's.deleted_at IS NULL',
+    `COALESCE(s.preorder_id, 0) = 0`,
+    `COALESCE(s.payment_method, '') != 'preorder'`,
+  ]
+  const params = []
+
+  if (dateFrom) {
+    where.push(`date(s.created_at, 'localtime') >= ?`)
+    params.push(dateFrom)
+  }
+
+  if (dateTo) {
+    where.push(`date(s.created_at, 'localtime') <= ?`)
+    params.push(dateTo)
+  }
+
+  if (query) {
+    where.push(`(
+      LOWER(COALESCE(s.folio, '')) LIKE ?
+      OR LOWER(COALESCE(c.name, '')) LIKE ?
+      OR LOWER(COALESCE(c.phone, '')) LIKE ?
+      OR LOWER(COALESCE(s.payment_method, '')) LIKE ?
+    )`)
+    params.push(`%${query}%`, `%${query}%`, `%${query}%`, `%${query}%`)
+  }
+
+  return { where, params }
+}
+
+function mapSaleRow(row) {
+  return {
+    id: Number(row.id),
+    folio: String(row.folio || ''),
+    subtotal: Number(row.subtotal || 0),
+    discount: Number(row.discount || 0),
+    total: Number(row.total || 0),
+    creditUsed: Number(row.credit_used || 0),
+    totalBeforeCredit: Number(row.total || 0) + Number(row.credit_used || 0),
+    amountPaid: Number(row.amount_paid || 0),
+    amountDue: Number(row.amount_due || 0),
+    paymentStatus: String(row.payment_status || 'paid'),
+    paymentMethod: String(row.payment_method || ''),
+    cashReceived: Number(row.cash_received || 0),
+    changeGiven: Number(row.change_given || 0),
+    status: String(row.status || ''),
+    createdAt: String(row.created_at || ''),
+    updatedAt: String(row.updated_at || ''),
+    customerId: row.customer_id ? Number(row.customer_id) : null,
+    customerName: String(row.customer_name || ''),
+    customerPhone: String(row.customer_phone || ''),
+    itemsSummary: String(row.items_summary || ''),
+  }
+}
+
 function registerHistoryHandlers() {
   ipcMain.handle('sales:listToday', () => {
     const db = getDb()
@@ -27,35 +96,62 @@ function registerHistoryHandlers() {
         s.updated_at,
         s.customer_id,
         c.name AS customer_name,
-        c.phone AS customer_phone
+        c.phone AS customer_phone,
+        (
+          SELECT GROUP_CONCAT(COALESCE(si.product_name, '') || ' x' || COALESCE(si.qty, 0), ', ')
+          FROM sale_items si
+          WHERE si.sale_id = s.id
+        ) AS items_summary
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       WHERE s.deleted_at IS NULL
+        AND COALESCE(s.preorder_id, 0) = 0
+        AND COALESCE(s.payment_method, '') != 'preorder'
       ORDER BY s.id DESC
       LIMIT 200
     `).all()
 
-    return (sales || []).map(row => ({
-      id: Number(row.id),
-      folio: String(row.folio || ''),
-      subtotal: Number(row.subtotal || 0),
-      discount: Number(row.discount || 0),
-      total: Number(row.total || 0),
-      creditUsed: Number(row.credit_used || 0),
-      totalBeforeCredit: Number(row.total || 0) + Number(row.credit_used || 0),
-      amountPaid: Number(row.amount_paid || 0),
-      amountDue: Number(row.amount_due || 0),
-      paymentStatus: String(row.payment_status || 'paid'),
-      paymentMethod: String(row.payment_method || ''),
-      cashReceived: Number(row.cash_received || 0),
-      changeGiven: Number(row.change_given || 0),
-      status: String(row.status || ''),
-      createdAt: String(row.created_at || ''),
-      updatedAt: String(row.updated_at || ''),
-      customerId: row.customer_id ? Number(row.customer_id) : null,
-      customerName: String(row.customer_name || ''),
-      customerPhone: String(row.customer_phone || ''),
-    }))
+    return (sales || []).map(mapSaleRow)
+  })
+
+  ipcMain.handle('sales:listHistory', (event, filters = {}) => {
+    const db = getDb()
+    requirePermission('history', 'consultar historial de ventas')
+
+    const { where, params } = buildSalesHistoryQuery(filters)
+    const sales = db.prepare(`
+      SELECT
+        s.id,
+        s.folio,
+        s.subtotal,
+        s.discount,
+        s.total,
+        s.credit_used,
+        COALESCE(s.amount_paid, 0) as amount_paid,
+        COALESCE(s.amount_due, 0) as amount_due,
+        COALESCE(s.payment_status, 'paid') as payment_status,
+        s.payment_method,
+        s.cash_received,
+        s.change_given,
+        s.status,
+        s.created_at,
+        s.updated_at,
+        s.customer_id,
+        c.name AS customer_name,
+        c.phone AS customer_phone,
+        (
+          SELECT GROUP_CONCAT(COALESCE(si.product_name, '') || ' x' || COALESCE(si.qty, 0), ', ')
+          FROM sale_items si
+          WHERE si.sale_id = s.id
+        ) AS items_summary
+      FROM sales s
+      LEFT JOIN customers c ON c.id = s.customer_id
+      WHERE ${where.join(' AND ')}
+      ORDER BY s.created_at DESC, s.id DESC
+      LIMIT 400
+    `).all(...params)
+
+    return (sales || []).map(mapSaleRow)
   })
 
   ipcMain.handle('sales:getDetail', (event, saleId) => {

@@ -7,6 +7,11 @@ Repositorio inicializado el 2026-03-21.
 - Guía de cambios para GitHub: `GITHUB_DOCUMENTACION.md`
 
 ## Cambios recientes
+- Catálogo de preventas con alta, edición, desactivación, asignación a cliente e importación/exportación en Excel.
+- Historial de ventas con búsqueda por folio, cliente, teléfono, método de pago y rango de fechas.
+- Cuentas por cobrar con resumen e items por venta dentro del detalle.
+- Caja y reportes excluyen ventas de preventa para evitar duplicidad operativa.
+- POS calcula cambio real cuando el pago es en efectivo.
 - Inicio de sesión por usuario con NIP.
 - Panel de administración de usuarios y permisos por ventana.
 - Bitácora de movimientos firmada por usuario.
@@ -77,6 +82,14 @@ Repositorio inicializado el 2026-03-21.
 
 ### Preventas
 - Se agregó una vista dedicada para crear y consultar preventas.
+- Ahora también incluye un catálogo base de preventas reutilizables.
+- El catálogo permite:
+  - crear fichas base con código, nombre, categoría, imagen, fechas, precio y producto ligado,
+  - editar o desactivar fichas existentes,
+  - asignar una preventa base a un cliente con anticipo opcional,
+  - importar catálogo desde Excel,
+  - descargar plantilla de carga,
+  - exportar lista de compra consolidada.
 - Cada preventa permite:
   - capturar cliente,
   - definir salida estimada,
@@ -86,6 +99,7 @@ Repositorio inicializado el 2026-03-21.
   - marcar como surtida o cancelada.
 - El backend ya expone operaciones para:
   - listado con filtros,
+  - catálogo base de preventas,
   - detalle,
   - creación,
   - actualización,
@@ -93,8 +107,36 @@ Repositorio inicializado el 2026-03-21.
   - abonos,
   - reapertura,
   - surtido,
-  - resúmenes y consultas por cliente.
+  - resúmenes y consultas por cliente,
+  - importación y exportación operativa en Excel.
 - También se registran y reenvían correos de preventa creada, abono y liquidación.
+
+### Historial de ventas
+- La vista de historial ya no se limita al día actual.
+- Ahora permite:
+  - búsqueda por folio, cliente, teléfono o método de pago,
+  - filtros por fecha desde/hasta,
+  - rangos rápidos de hoy, ayer, últimos 7 días o todo,
+  - vista previa de artículos vendidos por ticket.
+
+### Cuentas por cobrar
+- El módulo ahora muestra el resumen de artículos por venta.
+- El detalle de cada cuenta por cobrar ya incluye:
+  - artículos de la venta,
+  - SKU,
+  - cantidades,
+  - totales por línea.
+
+### Caja y reportes
+- Las ventas derivadas de preventas se excluyen de los cortes de caja y de los reportes de ventas.
+- Esto evita contar dos veces operaciones que ya se controlan dentro del flujo de preventas.
+
+### Cobro en efectivo
+- En el POS, cuando el método de pago es efectivo, el campo de pago se interpreta como efectivo recibido.
+- El sistema calcula automáticamente:
+  - monto aplicado real,
+  - saldo pendiente,
+  - cambio a entregar.
 
 ### Historial de cliente
 - El historial por cliente ahora muestra preventas, pagos de preventa y métricas agregadas de saldo pendiente y estados.

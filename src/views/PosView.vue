@@ -322,7 +322,7 @@
           </div>
 
           <div class="credit-box">
-            <label>Monto pagado</label>
+            <label>{{ paymentMethod === 'cash' ? 'Efectivo recibido' : 'Monto pagado' }}</label>
             <input
               v-model="paymentAmount"
               type="number"
@@ -341,6 +341,11 @@
             <div class="summary-row" style="margin-top: 6px;">
               <span>Saldo pendiente</span>
               <strong>$ {{ formatPrice(pendingAmount) }}</strong>
+            </div>
+
+            <div v-if="paymentMethod === 'cash'" class="summary-row total-change" style="margin-top: 6px;">
+              <span>Cambio</span>
+              <strong>$ {{ formatPrice(changeAmount) }}</strong>
             </div>
 
             <div v-if="pendingAmount > 0" style="margin-top: 12px;">
@@ -655,7 +660,7 @@ function validatePaymentAmount() {
     nextValue = 0
   }
 
-  if (nextValue > remaining) {
+  if (paymentMethod.value !== 'cash' && nextValue > remaining) {
     nextValue = remaining
   }
 
@@ -709,13 +714,24 @@ const remainingAfterCredit = computed(() => {
   return Math.max(total - credit, 0)
 })
 
+const effectiveAmountPaid = computed(() => {
+  const received = parseMoneyInput(paymentAmount.value)
+  const remaining = Number(remainingAfterCredit.value || 0)
+  return Math.min(received, remaining)
+})
+
 const pendingAmount = computed(() => {
-  return Math.max(Number(remainingAfterCredit.value || 0) - parseMoneyInput(paymentAmount.value), 0)
+  return Math.max(Number(remainingAfterCredit.value || 0) - Number(effectiveAmountPaid.value || 0), 0)
+})
+
+const changeAmount = computed(() => {
+  if (paymentMethod.value !== 'cash') return 0
+  return Math.max(parseMoneyInput(paymentAmount.value) - Number(effectiveAmountPaid.value || 0), 0)
 })
 
 const paymentStatusPreview = computed(() => {
   if (Number(pendingAmount.value || 0) <= 0) return 'paid'
-  if (parseMoneyInput(paymentAmount.value) <= 0) return 'pending'
+  if (Number(effectiveAmountPaid.value || 0) <= 0) return 'pending'
   return 'partial'
 })
 
@@ -778,7 +794,7 @@ async function confirmSale() {
     }
   }
 
-  if (parseMoneyInput(paymentAmount.value) > Number(remainingAfterCredit.value || 0)) {
+  if (paymentMethod.value !== 'cash' && parseMoneyInput(paymentAmount.value) > Number(remainingAfterCredit.value || 0)) {
     saleError.value = 'El monto pagado no puede exceder el total neto.'
     return
   }
@@ -805,10 +821,10 @@ async function confirmSale() {
       total: Number(remainingAfterCredit.value || 0),
       payment_method: paymentMethod.value,
       cash_received: paymentMethod.value === 'cash' ? parseMoneyInput(paymentAmount.value) : 0,
-      change_given: 0,
+      change_given: paymentMethod.value === 'cash' ? Number(changeAmount.value || 0) : 0,
       customerId: selectedCustomer.value?.id || null,
       credit_used: parseMoneyInput(creditToUse.value),
-      amount_paid: parseMoneyInput(paymentAmount.value),
+      amount_paid: Number(effectiveAmountPaid.value || 0),
       due_date: dueDate.value || null,
       payment_notes: String(paymentNotes.value || ''),
     }

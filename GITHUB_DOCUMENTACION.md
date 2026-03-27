@@ -1,10 +1,20 @@
 ﻿# Documentacion GitHub
 
-Fecha: 2026-03-25
+Fecha: 2026-03-27
 
 ## Alcance de esta actualización
 
-Se integró una capa completa de control operativo para el POS:
+Se consolidó una segunda capa operativa sobre ventas, preventas y cobranza:
+
+- catálogo reutilizable de preventas
+- importación y exportación de catálogo de preventas en Excel
+- asignación directa de preventas base a clientes
+- historial de ventas con filtros por texto y fechas
+- detalle enriquecido de cuentas por cobrar con artículos vendidos
+- exclusión de preventas dentro de caja y reportes de ventas
+- cálculo de cambio real en cobros en efectivo dentro del POS
+
+También se mantienen los cambios estructurales integrados en la actualización anterior:
 
 - usuarios con NIP
 - permisos por ventana
@@ -25,6 +35,94 @@ Se integró una capa completa de control operativo para el POS:
 - módulo completo de preventas con vista, IPC, resumen y correos
 - historial de clientes enriquecido con preventas y pagos asociados
 - empaquetado de Windows con Electron Builder
+
+## Preventas: catálogo base e importación Excel
+
+### Qué cambió
+
+- Se creó la tabla `preorder_catalog`.
+- La tabla `preorders` ahora puede ligarse a `preorder_catalog` mediante `preorder_catalog_id`.
+- La vista `Preventas` ahora maneja dos niveles:
+  - catálogo base de apartados o lanzamientos,
+  - preventas reales asignadas a clientes.
+
+### Operaciones nuevas
+
+- Crear ficha base de preventa
+- Editar ficha base
+- Desactivar ficha base
+- Asignar ficha base a un cliente
+- Importar catálogo desde Excel
+- Exportar plantilla Excel
+- Exportar lista de compra consolidada
+
+### Beneficio
+
+- Permite preparar lanzamientos o apartados recurrentes una sola vez.
+- Reduce captura manual al asignar preventas a clientes.
+- Facilita carga masiva y planeación de compra con archivos `.xlsx`.
+
+## Historial de ventas con filtros
+
+### Qué cambió
+
+- Se agregó el handler `sales:listHistory`.
+- La vista `Historial de ventas` ahora consume filtros reales en backend.
+- El listado permite buscar por:
+  - folio,
+  - nombre del cliente,
+  - teléfono,
+  - método de pago.
+- También soporta rango `desde/hasta` y accesos rápidos:
+  - hoy,
+  - ayer,
+  - últimos 7 días,
+  - todo.
+
+### Ajuste de alcance
+
+- Tanto el historial como la consulta rápida del día excluyen ventas de tipo preventa para mantener separado ese flujo.
+
+## Cuentas por cobrar con detalle de artículos
+
+### Qué cambió
+
+- Las consultas de cuentas por cobrar ahora incluyen `items_summary`.
+- El detalle por venta también devuelve las partidas completas de la venta.
+- En frontend se muestran los artículos asociados dentro del modal de detalle y del historial por cliente con saldo.
+
+### Beneficio
+
+- Mejora la trazabilidad de qué se vendió exactamente en cada cuenta pendiente.
+- Reduce la necesidad de abrir el ticket por separado para identificar mercancía.
+
+## Caja y reportes: exclusión de preventas
+
+### Qué cambió
+
+- Los resúmenes de caja ya no consideran ventas ligadas a `preorder_id`.
+- Los reportes de ventas también excluyen registros con `payment_method = 'preorder'`.
+
+### Beneficio
+
+- Evita duplicidad entre ingresos del flujo normal y movimientos de preventa.
+- Mantiene cortes y reportes enfocados en ventas efectivamente cobradas desde POS.
+
+## POS: cálculo de cambio en efectivo
+
+### Qué cambió
+
+- Cuando el método es `cash`, el campo de pago ahora representa efectivo recibido.
+- El POS calcula:
+  - monto aplicado real,
+  - saldo restante,
+  - cambio entregado.
+- El backend recibe `amount_paid` y `change_given` ya normalizados.
+
+### Beneficio
+
+- Permite cobrar con importe mayor al total cuando el cliente entrega efectivo exacto o superior.
+- Evita registrar como sobrepago lo que en realidad es cambio.
 
 ## Usuarios y permisos
 
@@ -225,15 +323,20 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - Handlers IPC dedicados en `electron/ipc/preorders.cjs`.
 - Exposición completa en `window.posAPI` para:
   - listado,
+  - catálogo base,
   - detalle,
   - alta,
   - edición,
+  - alta y edición de catálogo base,
+  - desactivación de catálogo base,
+  - asignación a cliente,
   - cancelación,
   - abonos,
   - reapertura,
   - surtido,
   - resumen operativo,
   - consultas de pendientes, pagadas y vencidas,
+  - importación y exportación Excel,
   - reenvío de correos.
 
 ### Flujo operativo
@@ -286,6 +389,7 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `electron/main.cjs`
 - `electron/preload.cjs`
 - `electron/ipc/preorders.cjs`
+- `electron/ipc/receivables.cjs`
 - `electron/ipc/users.cjs`
 - `electron/ipc/sales-service.cjs`
 - `electron/ipc/history.cjs`
@@ -309,5 +413,6 @@ En el formulario de productos se añadieron opciones reutilizando valores ya reg
 - `src/views/ReportsView.vue`
 - `src/views/SettingsView.vue`
 - `src/views/PreordersView.vue`
+- `src/views/ReceivablesView.vue`
 - `vite.config.js`
 - `package.json`

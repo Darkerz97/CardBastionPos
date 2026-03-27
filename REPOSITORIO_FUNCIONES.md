@@ -1,6 +1,6 @@
 ﻿# Repositorio de Funciones
 
-Fecha de corte: 2026-03-25
+Fecha de corte: 2026-03-27
 
 Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `electron/preload.cjs`).
 
@@ -49,6 +49,7 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 ## Ventas
 - createSale
 - getTodaySales
+- getSalesHistory
 - getSaleDetail
 - updateSale
 - deleteSale
@@ -127,8 +128,13 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 
 ## Preventas
 - getPreorders
+- getPreorderCatalog
 - getPreorderById
 - createPreorder
+- createPreorderCatalogItem
+- updatePreorderCatalogItem
+- deletePreorderCatalogItem
+- assignPreorderCatalogItem
 - updatePreorder
 - cancelPreorder
 - addPreorderPayment
@@ -139,6 +145,9 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 - getPendingPreorders
 - getPaidPreorders
 - getOverduePreorders
+- importPreordersFromExcel
+- exportPreorderTemplate
+- exportPreorderPurchaseList
 - sendPreorderCreatedEmail
 - sendPreorderPaymentEmail
 - sendPreorderPaidEmail
@@ -159,6 +168,34 @@ Este archivo documenta las funciones expuestas en `window.posAPI` (fuente: `elec
 Si se agregan nuevas funciones en `electron/preload.cjs`, este archivo debe actualizarse con la nueva fecha de corte.
 
 ---
+
+## Cambios Implementados (2026-03-27)
+
+### Historial de ventas
+- Se expuso `getSalesHistory` para consultar ventas con filtros por texto y fechas.
+- El historial ahora puede mostrar artículos resumidos por ticket y rangos rápidos en frontend.
+- Se excluyen ventas originadas desde preventas para no mezclar flujos.
+
+### Preventas: catálogo base
+- Se expuso `getPreorderCatalog` para consultar preventas base activas.
+- Se agregaron funciones para crear, actualizar, desactivar y asignar fichas base de preventa:
+  - `createPreorderCatalogItem`
+  - `updatePreorderCatalogItem`
+  - `deletePreorderCatalogItem`
+  - `assignPreorderCatalogItem`
+
+### Preventas: Excel
+- Se agregaron funciones operativas para archivos `.xlsx`:
+  - `importPreordersFromExcel`
+  - `exportPreorderTemplate`
+  - `exportPreorderPurchaseList`
+
+### Cuentas por cobrar y reportes
+- Las consultas de cuentas por cobrar ahora devuelven resumen de artículos vendidos por ticket.
+- Caja y reportes excluyen ventas de preventa para evitar doble conteo.
+
+### POS
+- El flujo de cobro en efectivo ahora distingue entre efectivo recibido, monto aplicado y cambio entregado.
 
 ## Cambios Implementados (2026-03-25)
 

@@ -83,7 +83,12 @@ function registerReceivableHandlers() {
         s.payment_method,
         s.credit_used,
         s.due_date,
-        s.payment_notes
+        s.payment_notes,
+        (
+          SELECT GROUP_CONCAT(COALESCE(si.product_name, '') || ' x' || COALESCE(si.qty, 0), ', ')
+          FROM sale_items si
+          WHERE si.sale_id = s.id
+        ) as items_summary
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       ${whereSql}
@@ -106,6 +111,7 @@ function registerReceivableHandlers() {
       creditUsed: Number(row.credit_used || 0),
       dueDate: String(row.due_date || ''),
       paymentNotes: String(row.payment_notes || ''),
+      itemsSummary: String(row.items_summary || ''),
       isOverdue: Boolean(row.due_date && Number(row.amount_due || 0) > 0 && new Date(row.due_date).getTime() < Date.now()),
     }))
   })
@@ -135,7 +141,12 @@ function registerReceivableHandlers() {
         COALESCE(s.amount_due, 0) as amount_due,
         COALESCE(s.payment_status, 'paid') as payment_status,
         s.due_date,
-        s.payment_notes
+        s.payment_notes,
+        (
+          SELECT GROUP_CONCAT(COALESCE(si.product_name, '') || ' x' || COALESCE(si.qty, 0), ', ')
+          FROM sale_items si
+          WHERE si.sale_id = s.id
+        ) as items_summary
       FROM sales s
       LEFT JOIN customers c ON c.id = s.customer_id
       WHERE s.id = ?
@@ -196,6 +207,7 @@ function registerReceivableHandlers() {
         paymentStatus: String(sale.payment_status || 'paid'),
         dueDate: String(sale.due_date || ''),
         paymentNotes: String(sale.payment_notes || ''),
+        itemsSummary: String(sale.items_summary || ''),
       },
       items: (items || []).map((item) => ({
         id: Number(item.id),
@@ -239,7 +251,12 @@ function registerReceivableHandlers() {
         COALESCE(s.payment_status, 'paid') as payment_status,
         s.due_date,
         s.payment_method,
-        s.payment_notes
+        s.payment_notes,
+        (
+          SELECT GROUP_CONCAT(COALESCE(si.product_name, '') || ' x' || COALESCE(si.qty, 0), ', ')
+          FROM sale_items si
+          WHERE si.sale_id = s.id
+        ) as items_summary
       FROM sales s
       WHERE s.customer_id = ?
         AND s.deleted_at IS NULL
@@ -277,6 +294,7 @@ function registerReceivableHandlers() {
         dueDate: String(row.due_date || ''),
         paymentMethod: String(row.payment_method || ''),
         paymentNotes: String(row.payment_notes || ''),
+        itemsSummary: String(row.items_summary || ''),
       })),
       payments: (payments || []).map((row) => ({
         id: Number(row.id),

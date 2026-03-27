@@ -3,9 +3,25 @@
     <header class="history-header">
       <div>
         <h1>Historial de ventas</h1>
-        <p>Ultimas 200 ventas activas con opcion de editar o eliminar</p>
+        <p>Consulta ventas por busqueda y rango de fechas, con opcion de editar o eliminar</p>
       </div>
     </header>
+
+    <section class="filters-panel">
+      <input
+        v-model="filters.query"
+        class="input"
+        type="text"
+        placeholder="Buscar por folio, cliente, telefono o metodo"
+        @input="loadSales"
+      />
+      <input v-model="filters.dateFrom" class="input" type="date" @change="loadSales" />
+      <input v-model="filters.dateTo" class="input" type="date" @change="loadSales" />
+      <button class="secondary-btn" @click="applyQuickRange('today')">Hoy</button>
+      <button class="secondary-btn" @click="applyQuickRange('yesterday')">Ayer</button>
+      <button class="secondary-btn" @click="applyQuickRange('last7')">7 dias</button>
+      <button class="secondary-btn" @click="applyQuickRange('all')">Todo</button>
+    </section>
 
     <section class="history-grid">
       <div class="sales-list-panel">
@@ -37,6 +53,9 @@
             <div class="sale-card-bottom">
               <span>{{ formatPaymentStatus(sale.paymentStatus) }}</span>
               <span>Pendiente: ${{ formatPrice(sale.amountDue) }}</span>
+            </div>
+            <div class="sale-card-bottom sale-items-preview">
+              <span>{{ sale.itemsSummary || 'Sin articulos' }}</span>
             </div>
           </div>
         </div>
@@ -233,6 +252,11 @@ const selectedDetail = ref(null)
 const message = ref('')
 const errorMessage = ref('')
 const editModalOpen = ref(false)
+const filters = reactive({
+  query: '',
+  dateFrom: '',
+  dateTo: '',
+})
 
 const editForm = reactive({
   id: null,
@@ -272,6 +296,38 @@ function formatPaymentStatus(status) {
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleString() : ''
+}
+
+function formatDateInput(value) {
+  return value.toISOString().slice(0, 10)
+}
+
+function applyQuickRange(range, shouldReload = true) {
+  const today = new Date()
+  const end = new Date(today)
+  const start = new Date(today)
+
+  if (range === 'today') {
+    const date = formatDateInput(today)
+    filters.dateFrom = date
+    filters.dateTo = date
+  } else if (range === 'yesterday') {
+    start.setDate(start.getDate() - 1)
+    const date = formatDateInput(start)
+    filters.dateFrom = date
+    filters.dateTo = date
+  } else if (range === 'last7') {
+    start.setDate(start.getDate() - 6)
+    filters.dateFrom = formatDateInput(start)
+    filters.dateTo = formatDateInput(end)
+  } else {
+    filters.dateFrom = ''
+    filters.dateTo = ''
+  }
+
+  if (shouldReload) {
+    loadSales()
+  }
 }
 
 function buildItemPayload(item) {
@@ -315,7 +371,11 @@ function handleProductChange(item) {
 }
 
 async function loadSales() {
-  sales.value = await window.posAPI.getTodaySales()
+  sales.value = await window.posAPI.getSalesHistory({
+    query: filters.query,
+    dateFrom: filters.dateFrom || null,
+    dateTo: filters.dateTo || null,
+  })
 
   if (sales.value.length && !selectedSaleId.value) {
     await selectSale(sales.value[0].id)
@@ -413,6 +473,7 @@ async function handleDeleteSale() {
 
 onMounted(async () => {
   try {
+    applyQuickRange('today', false)
     await Promise.all([loadSales(), loadDependencies()])
   } catch (error) {
     errorMessage.value = error?.message || 'No se pudo cargar el historial.'
@@ -439,6 +500,13 @@ onMounted(async () => {
 }
 
 .history-header {
+  margin-bottom: 20px;
+}
+
+.filters-panel {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) repeat(2, minmax(150px, 0.8fr)) repeat(4, auto);
+  gap: 12px;
   margin-bottom: 20px;
 }
 
@@ -649,6 +717,7 @@ onMounted(async () => {
 }
 
 @media (max-width: 1100px) {
+  .filters-panel,
   .history-grid,
   .form-grid {
     grid-template-columns: 1fr;
