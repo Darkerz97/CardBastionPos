@@ -312,6 +312,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const customers = ref([])
 const search = ref('')
@@ -323,8 +324,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function formatPayment(method) {

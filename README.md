@@ -102,6 +102,11 @@ Repositorio inicializado el 2026-03-21.
   - clientes usan `remote_id`, `email` o `phone` cuando aplica.
 - El POS ya no inventa `user_uuid` o `customer_uuid` para sincronizar con Laravel.
 - La cola ahora distingue correctamente entre respuestas `created`, `skipped`, `conflict` y `failed` devueltas por el backend, evitando marcar como sincronizado un registro rechazado por Laravel.
+- Las ventas ahora disparan envío inmediato al servidor desde su propio flujo, por lo que el contador de pendientes del POS refleja mejor cuándo entra o sale una venta de la cola.
+- Los cierres de caja dejaron de mezclar aperturas dentro del endpoint `sync/upload-cash-closures`.
+- Los cierres de caja ahora se empaquetan con un payload más completo (`cash_session_id`, montos esperados, diferencia, fechas y estado) para alinearse mejor con Laravel.
+- El upload de cierres de caja ahora serializa `closures` como JSON dentro del formulario, porque el backend estaba respondiendo `validation.required` cuando recibía el arreglo expandido.
+- Las vistas operativas del POS ahora muestran fechas y horas usando la zona `America/Mexico_City`, evitando desfases por la zona local del equipo.
 
 ### Caja
 - Se agregó registro de retiros de efectivo.
@@ -111,12 +116,14 @@ Repositorio inicializado el 2026-03-21.
   - firma,
   - notas opcionales.
 - Los retiros impactan el efectivo esperado de la caja abierta.
+- La cola local de sync ya ignora aperturas de caja para el endpoint de cierres y deja listos para reintento los eventos reales de cierre, actualización o eliminación.
 
 ### POS
 - Se mejoró la experiencia visual con animaciones y personalización.
 - Se puede editar el precio de un producto en el carrito sin modificar el precio maestro del catálogo.
 - El menú lateral queda fijo en todas las vistas con la misma navegación.
 - Se retiraron los botones internos para volver al POS cuando la navegación lateral ya está visible.
+- Reportes, historial, caja, respaldos y otras vistas ya formatean fecha/hora con horario de México de forma consistente.
 
 ### Productos
 - Al crear un producto nuevo, el SKU se propone automáticamente con formato secuencial `CB-00000`.

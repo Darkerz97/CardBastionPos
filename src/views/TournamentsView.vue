@@ -238,6 +238,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const tournaments = ref([])
 const selectedTournamentId = ref(null)
@@ -279,8 +280,7 @@ function setError(error, fallback) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return formatDateTimeInPosTimeZone(value)
 }
 
 async function loadTournaments() {

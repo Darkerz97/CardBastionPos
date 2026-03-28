@@ -243,6 +243,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { formatDateInputInPosTimeZone, formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const sales = ref([])
 const products = ref([])
@@ -295,11 +296,11 @@ function formatPaymentStatus(status) {
 }
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString() : ''
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function formatDateInput(value) {
-  return value.toISOString().slice(0, 10)
+  return formatDateInputInPosTimeZone(value)
 }
 
 function applyQuickRange(range, shouldReload = true) {

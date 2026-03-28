@@ -104,6 +104,7 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const users = ref([])
 const auditLogs = ref([])
@@ -129,7 +130,7 @@ function clearMessages() {
 }
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString() : ''
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function buildPermissionMap(source = {}) {

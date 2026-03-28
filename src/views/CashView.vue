@@ -230,6 +230,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const openSession = ref(null)
 const summary = ref(null)
@@ -258,7 +259,7 @@ function formatPrice(value) {
 }
 
 function formatDate(value) {
-  return value ? new Date(value).toLocaleString() : ''
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function formatMovementType(type) {

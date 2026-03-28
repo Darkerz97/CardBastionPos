@@ -267,6 +267,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 const gameOptions = ['Magic: The Gathering', 'Pokemon', 'Yu-Gi-Oh!', 'One Piece', 'Lorcana', 'Star Wars Unlimited', 'Flesh and Blood']
 const finishOptions = ['nonfoil', 'foil', 'etched', 'surge foil']
 const languageOptions = ['EN', 'ES', 'JP', 'DE', 'FR', 'IT', 'PT', 'KO', 'CN', 'TW']
@@ -310,7 +311,7 @@ const filteredInactiveProducts = computed(() => {
   return (inactiveProducts.value || []).filter((product) => !term || buildProductSearchText(product).includes(term))
 })
 function formatPrice(v){ return Number(v||0).toFixed(2) }
-function formatDate(v){ return v ? new Date(v).toLocaleString() : '' }
+function formatDate(v){ return formatDateTimeInPosTimeZone(v) }
 function formatReference(t,id){ return id ? `${t||'manual'} #${id}` : (t||'manual') }
 function normalizedProductType(p){ return String(p?.product_type || 'normal').toLowerCase() === 'single' ? 'single' : 'normal' }
 function isSingleProduct(p){ return normalizedProductType(p) === 'single' }

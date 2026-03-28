@@ -511,6 +511,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { formatDateInputInPosTimeZone, formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const report = ref(null)
 const inventoryReport = ref(null)
@@ -519,7 +520,7 @@ const preorderReport = ref(null)
 const message = ref('')
 const errorMessage = ref('')
 
-const today = new Date().toISOString().slice(0, 10)
+const today = formatDateInputInPosTimeZone()
 const dateFrom = ref(today)
 const dateTo = ref(today)
 const inactiveDays = ref(30)
@@ -534,8 +535,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function formatPayment(method) {

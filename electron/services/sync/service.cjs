@@ -1,6 +1,6 @@
 const crypto = require('crypto')
 const { BrowserWindow } = require('electron')
-const { postSyncFormPayload, postSyncPayload, getSyncResource, authenticateWithServer } = require('./client.cjs')
+const { postSyncFormPayload, postSyncPayload, postSyncStringifiedFormPayload, getSyncResource, authenticateWithServer } = require('./client.cjs')
 const { writeSyncLog, listSyncLogs } = require('./logger.cjs')
 const {
   getServerSyncSettings,
@@ -67,7 +67,26 @@ function getProductSyncReference(db, item = {}) {
 
   if (localProductId > 0) {
     productRow = db.prepare(`
-      SELECT id, remote_id, sku, barcode
+      SELECT
+        id,
+        remote_id,
+        sku,
+        barcode,
+        name,
+        category,
+        price,
+        cost,
+        stock,
+        active,
+        product_type,
+        game,
+        card_name,
+        set_name,
+        set_code,
+        collector_number,
+        finish,
+        language,
+        card_condition
       FROM products
       WHERE id = ?
       LIMIT 1
@@ -78,11 +97,37 @@ function getProductSyncReference(db, item = {}) {
   const sku = String(item.sku || productRow?.sku || '').trim()
   const barcode = String(item.barcode || productRow?.barcode || '').trim()
 
+  const fallbackProduct = remoteId > 0 || !productRow
+    ? null
+    : {
+        local_id: Number(productRow.id),
+        remote_id: null,
+        sku: sku || null,
+        barcode: barcode || null,
+        name: String(productRow.name || item.name || '').trim() || null,
+        category: String(productRow.category || '').trim() || null,
+        price: Number(productRow.price || item.price || 0),
+        cost: Number(productRow.cost || 0),
+        stock: Number(productRow.stock || 0),
+        active: Number(productRow.active === undefined ? 1 : productRow.active ? 1 : 0),
+        product_type: String(productRow.product_type || 'normal').trim() || 'normal',
+        game: String(productRow.game || '').trim() || null,
+        card_name: String(productRow.card_name || productRow.name || item.name || '').trim() || null,
+        set_name: String(productRow.set_name || '').trim() || null,
+        set_code: String(productRow.set_code || '').trim() || null,
+        collector_number: String(productRow.collector_number || '').trim() || null,
+        finish: String(productRow.finish || '').trim() || null,
+        language: String(productRow.language || '').trim() || null,
+        card_condition: String(productRow.card_condition || '').trim() || null,
+      }
+
   return {
     product_id: remoteId > 0 ? remoteId : null,
     product_uuid: null,
     product_sku: sku || null,
     product_barcode: barcode || null,
+    product_name: String(item.name || productRow?.name || '').trim() || null,
+    product_payload: fallbackProduct,
   }
 }
 
@@ -151,13 +196,29 @@ function buildSaleUploadItem(db, entry) {
 function buildClosureUploadItem(entry) {
   const payload = entry?.payload || {}
   const summary = payload.summary || {}
+  const action = String(entry?.action || payload.action || '').trim()
+  const eventType = String(entry?.event_type || '').trim()
+  const resolvedSessionId = Number(summary.sessionId || payload.cashSessionId || entry?.entity_id || 0) || null
+  const openingAmount = payload.openingAmount ?? summary.openingAmount ?? 0
+  const closingAmount = payload.closingAmount ?? summary.closingAmount ?? 0
+  const expectedAmount = summary.expectedAmount ?? payload.expectedAmount ?? null
+  const difference = summary.difference ?? payload.difference ?? null
+  const openedAt = summary.openedAt || payload.openedAt || null
+  const closedAt = summary.closedAt || payload.closedAt || null
 
   return {
     local_id: entry.entity_id ?? null,
-    event_type: entry.event_type || null,
-    opening_amount: Number(payload.openingAmount || summary.openingAmount || 0),
-    closing_amount: Number(payload.closingAmount || summary.closingAmount || 0),
+    cash_session_id: resolvedSessionId,
+    event_type: eventType || null,
+    action: action || null,
+    status: action === 'delete' ? 'deleted' : 'closed',
+    opening_amount: Number(openingAmount || 0),
+    closing_amount: Number(closingAmount || 0),
+    expected_amount: expectedAmount === null ? null : Number(expectedAmount || 0),
+    difference: difference === null ? null : Number(difference || 0),
     notes: payload.notes || summary.notes || '',
+    opened_at: openedAt,
+    closed_at: closedAt,
     summary,
     created_at: entry.queued_at || null,
   }
@@ -180,15 +241,55 @@ function buildInventoryUploadItem(entry) {
   }
 }
 
+function buildProductUploadItem(entry) {
+  const payload = entry?.payload || {}
+  const product = payload.product || {}
+
+  return {
+    local_id: entry.entity_id ?? null,
+    event_type: entry.event_type || null,
+    action: entry.action || null,
+    product: {
+      remote_id: product.remote_id || null,
+      sku: product.sku || null,
+      barcode: product.barcode || null,
+      name: product.name || product.card_name || null,
+      category: product.category || null,
+      price: Number(product.price || 0),
+      cost: Number(product.cost || 0),
+      stock: Number(product.stock || 0),
+      min_stock: Number(product.min_stock || product.minStock || 0),
+      image: product.image || null,
+      active: Number(product.active === undefined ? 1 : product.active ? 1 : 0),
+      product_type: product.product_type || product.productType || 'normal',
+      game: product.game || null,
+      card_name: product.card_name || product.cardName || product.name || null,
+      set_name: product.set_name || product.setName || null,
+      set_code: product.set_code || product.setCode || null,
+      collector_number: product.collector_number || product.collectorNumber || null,
+      finish: product.finish || null,
+      language: product.language || null,
+      card_condition: product.card_condition || product.cardCondition || null,
+      created_at: product.created_at || null,
+      updated_at: product.updated_at || null,
+    },
+  }
+}
+
 function getPushRouteForRow(settings, row) {
   const eventType = String(row.event_type || '').trim()
   const entityType = String(row.entity_type || '').trim()
+  const action = String(row.action || '').trim()
 
   if (eventType.startsWith('sale.') || eventType.startsWith('receivable_payment.')) {
     return settings.uploadSalesPath
   }
 
-  if (eventType.startsWith('cash_session.') || eventType.startsWith('cash_movement.')) {
+  if (
+    eventType === 'cash_session.close' ||
+    eventType === 'cash_session.update' ||
+    eventType === 'cash_session.delete'
+  ) {
     return settings.uploadCashClosuresPath
   }
 
@@ -196,12 +297,28 @@ function getPushRouteForRow(settings, row) {
     return settings.uploadInventoryMovementsPath
   }
 
+  if (eventType.startsWith('product.')) {
+    return settings.uploadProductsPath || settings.pushPath
+  }
+
+  if (eventType.startsWith('product.') || eventType.startsWith('customer.')) {
+    return settings.pushPath
+  }
+
   if (entityType === 'sale') {
     return settings.uploadSalesPath
   }
 
-  if (entityType === 'cash_session' || entityType === 'cash_movement') {
+  if (entityType === 'cash_session' && ['close', 'update', 'delete'].includes(action)) {
     return settings.uploadCashClosuresPath
+  }
+
+  if (entityType === 'product') {
+    return settings.uploadProductsPath || settings.pushPath
+  }
+
+  if (entityType === 'product' || entityType === 'customer') {
+    return settings.pushPath
   }
 
   return null
@@ -431,6 +548,41 @@ function classifyUploadResults(rows, responseData) {
     syncedRows,
     skippedRows,
     failedRows,
+  }
+}
+
+function extractAcknowledgedEntityData(result = {}) {
+  if (!result || typeof result !== 'object') return null
+
+  return result.data || result.payload || result.product || result.customer || result.entity || result.record || null
+}
+
+function reconcileSyncedEntity(db, row, result) {
+  const entityType = String(row?.entity_type || '').trim()
+  const data = extractAcknowledgedEntityData(result)
+
+  if (!data || typeof data !== 'object') return false
+
+  if (entityType === 'product') {
+    const remoteId = data.remote_id || data.remoteId || data.id || result?.remote_id || result?.remoteId || result?.id
+    if (!remoteId) return false
+    return applyProductChange(db, { ...data, remote_id: remoteId })
+  }
+
+  if (entityType === 'customer') {
+    const remoteId = data.remote_id || data.remoteId || data.id || result?.remote_id || result?.remoteId || result?.id
+    if (!remoteId) return false
+    return applyCustomerChange(db, { ...data, remote_id: remoteId })
+  }
+
+  return false
+}
+
+function reconcileSyncedRows(db, rows, resultsMap = new Map()) {
+  for (const row of rows) {
+    const result = resultsMap.get(Number(row.id))
+    if (!result) continue
+    reconcileSyncedEntity(db, row, result)
   }
 }
 
@@ -682,6 +834,9 @@ async function pushRowsToRoute(db, route, rows) {
   if (lowerRoute.includes('upload-sales')) {
     const sales = envelopes.map((entry) => buildSaleUploadItem(db, entry))
     body = { sales }
+  } else if (lowerRoute.includes('upload-products')) {
+    const products = envelopes.map(buildProductUploadItem)
+    body = { products }
   } else if (lowerRoute.includes('upload-cash-closures')) {
     const closures = envelopes.map(buildClosureUploadItem)
     body = { closures }
@@ -692,7 +847,18 @@ async function pushRowsToRoute(db, route, rows) {
     body = { events: envelopes }
   }
 
-  const responseData = await postSyncFormPayload(db, route, body)
+  let responseData = null
+  if (lowerRoute.includes('upload-cash-closures')) {
+    responseData = await postSyncStringifiedFormPayload(db, route, body, ['closures'])
+  } else {
+    const useFormPayload = lowerRoute.includes('upload-sales') ||
+      lowerRoute.includes('upload-products') ||
+      lowerRoute.includes('upload-inventory-movements')
+    responseData = useFormPayload
+      ? await postSyncFormPayload(db, route, body)
+      : await postSyncPayload(db, route, body)
+  }
+
   return {
     responseData,
     requestBody: body,
@@ -826,10 +992,12 @@ async function flushPendingServerSync(db, options = {}) {
         const classified = classifyUploadResults(routeRows, responseData)
 
         if (classified.syncedRows.length) {
+          reconcileSyncedRows(db, classified.syncedRows, classified.resultMap)
           markQueueRowsSynced(db, classified.syncedRows, classified.resultMap)
         }
 
         if (classified.skippedRows.length) {
+          reconcileSyncedRows(db, classified.skippedRows, classified.resultMap)
           markQueueRowsSynced(db, classified.skippedRows, classified.resultMap)
         }
 

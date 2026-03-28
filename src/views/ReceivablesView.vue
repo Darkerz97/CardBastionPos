@@ -242,6 +242,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { formatDateTimeInPosTimeZone } from '../utils/datetime'
 
 const receivables = ref([])
 const customers = ref([])
@@ -313,8 +314,7 @@ function formatMoney(value) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
-  return new Date(value).toLocaleString()
+  return formatDateTimeInPosTimeZone(value)
 }
 
 function formatStatus(status) {

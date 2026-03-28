@@ -1,16 +1,38 @@
 const { logAudit } = require('../audit.cjs')
-const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
+const { enqueueAndFlushServerSync, enqueueServerSync } = require('./server-sync.cjs')
+
+function getMexicoDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Mexico_City',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).formatToParts(date)
+
+  return Object.fromEntries(parts.map((part) => [part.type, part.value]))
+}
 
 function generateFolio() {
   const now = new Date()
-  const yyyy = now.getFullYear()
-  const mm = String(now.getMonth() + 1).padStart(2, '0')
-  const dd = String(now.getDate()).padStart(2, '0')
-  const hh = String(now.getHours()).padStart(2, '0')
-  const mi = String(now.getMinutes()).padStart(2, '0')
-  const ss = String(now.getSeconds()).padStart(2, '0')
+  const parts = getMexicoDateParts(now)
+  const yyyy = parts.year
+  const mm = parts.month
+  const dd = parts.day
+  const hh = parts.hour
+  const mi = parts.minute
+  const ss = parts.second
+  const ms = String(now.getMilliseconds()).padStart(3, '0')
+  const nonce = Math.floor(Math.random() * 1000).toString().padStart(3, '0')
 
-  return `CB-${yyyy}${mm}${dd}-${hh}${mi}${ss}`
+  return `CB-${yyyy}${mm}${dd}-${hh}${mi}${ss}${ms}${nonce}`
+}
+
+function isDuplicateSaleFolioError(error) {
+  return String(error?.message || '').includes('UNIQUE constraint failed: sales.folio')
 }
 
 function resolvePaymentStatus(amountPaid, amountDue) {
@@ -269,6 +291,72 @@ function applySaleItems(db, saleId, folio, items, userId) {
   }
 }
 
+function getProductSyncSnapshot(db, productId) {
+  if (!productId) return null
+
+  return db.prepare(`
+    SELECT
+      id,
+      COALESCE(remote_id, '') AS remote_id,
+      COALESCE(sku, '') AS sku,
+      COALESCE(barcode, '') AS barcode,
+      name,
+      COALESCE(category, '') AS category,
+      price,
+      cost,
+      stock,
+      active,
+      COALESCE(product_type, 'normal') AS product_type,
+      COALESCE(game, '') AS game,
+      COALESCE(card_name, name) AS card_name,
+      COALESCE(set_name, '') AS set_name,
+      COALESCE(set_code, '') AS set_code,
+      COALESCE(collector_number, '') AS collector_number,
+      COALESCE(finish, '') AS finish,
+      COALESCE(language, '') AS language,
+      COALESCE(card_condition, '') AS card_condition
+    FROM products
+    WHERE id = ?
+    LIMIT 1
+  `).get(Number(productId))
+}
+
+function enqueueMissingProductsForSync(db, items = [], actor = null) {
+  const alreadyQueued = new Set()
+  const hasPendingProductEvent = db.prepare(`
+    SELECT id
+    FROM server_sync_queue
+    WHERE entity_type = 'product'
+      AND entity_id = ?
+      AND status IN ('pending', 'failed', 'sending')
+    LIMIT 1
+  `)
+
+  for (const item of items) {
+    const productId = Number(item.id || item.product_id || 0)
+    if (!productId || alreadyQueued.has(productId)) continue
+
+    alreadyQueued.add(productId)
+    const product = getProductSyncSnapshot(db, productId)
+
+    if (!product) continue
+    if (String(product.remote_id || '').trim()) continue
+    if (hasPendingProductEvent.get(productId)) continue
+
+    enqueueServerSync(db, {
+      eventType: 'product.create',
+      entityType: 'product',
+      entityId: productId,
+      action: 'create',
+      payload: {
+        actor: actor || null,
+        product,
+        source: 'sale_preflight',
+      },
+    })
+  }
+}
+
 function revertSaleEffects(db, sale, items, userId, notePrefix = 'Reversion de venta') {
   const updateStockWithValue = db.prepare(`
     UPDATE products
@@ -418,18 +506,22 @@ function fetchSaleResult(db, saleId) {
 async function syncSaleChange(db, action, saleResult, actor, extra = {}) {
   if (!saleResult?.sale) return
 
-  await enqueueAndFlushServerSync(db, {
-    eventType: `sale.${action}`,
-    entityType: 'sale',
-    entityId: saleResult.sale.id,
-    action,
-    payload: {
-      actor: actor || null,
-      sale: saleResult.sale,
-      items: saleResult.items || [],
-      ...extra,
-    },
-  })
+  try {
+    await enqueueAndFlushServerSync(db, {
+      eventType: `sale.${action}`,
+      entityType: 'sale',
+      entityId: saleResult.sale.id,
+      action,
+      payload: {
+        actor: actor || null,
+        sale: saleResult.sale,
+        items: saleResult.items || [],
+        ...extra,
+      },
+    })
+  } catch (error) {
+    console.error(`No se pudo sincronizar la venta ${saleResult.sale.folio}:`, error)
+  }
 }
 
 async function createSaleRecord(db, payload, actor) {
@@ -446,9 +538,9 @@ async function createSaleRecord(db, payload, actor) {
   }
 
   const values = validateSalePayload(payload)
-  const folio = generateFolio()
+  enqueueMissingProductsForSync(db, values.items, actor)
 
-  const transaction = db.transaction(() => {
+  const transaction = db.transaction((folio) => {
     const saleResult = db.prepare(`
       INSERT INTO sales (
         folio,
@@ -546,7 +638,20 @@ async function createSaleRecord(db, payload, actor) {
     return saleId
   })
 
-  const saleId = transaction()
+  // Reintentamos si un folio cae repetido por ventas casi simultaneas.
+  let saleId = null
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const folio = generateFolio()
+    try {
+      saleId = transaction(folio)
+      break
+    } catch (error) {
+      if (!isDuplicateSaleFolioError(error) || attempt === 4) {
+        throw error
+      }
+    }
+  }
+
   const saleResult = fetchSaleResult(db, saleId)
   await syncSaleChange(db, 'create', saleResult, actor, { request: payload })
   return saleResult
@@ -700,7 +805,7 @@ async function deleteSaleRecord(db, saleId, actor, reason = '') {
 
   transaction()
 
-  await enqueueAndFlushServerSync(db, {
+  enqueueServerSync(db, {
     eventType: 'sale.delete',
     entityType: 'sale',
     entityId: Number(saleId),

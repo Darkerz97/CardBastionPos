@@ -287,6 +287,33 @@ También se mantienen los cambios estructurales integrados en la actualización 
   - conflicto,
   - fallo.
 - Con esto se corrige un bug previo donde una respuesta HTTP `200` con conflicto interno podía dejar una venta marcada como `synced` aunque no se hubiera creado en servidor.
+- El flujo de ventas ahora usa envío inmediato con `enqueueAndFlushServerSync`, de modo que el badge de pendientes del POS responde mejor al estado real de la cola.
+
+### Ajustes recientes: cierres de caja y zona horaria
+
+- Se revisó la cola real del POS en `AppData\\Roaming\\pos-2-cardbastion\\cardbastion.sqlite` para diagnosticar por qué los cierres no subían.
+- El backend estaba devolviendo `422 validation.required` sobre `closures`, aunque el endpoint sí recibía requests.
+- A partir de ese diagnóstico se corrigió el flujo así:
+  - `cash_session.open` ya no se manda al endpoint `sync/upload-cash-closures`,
+  - sólo `close`, `update` y `delete` se consideran cierres sincronizables,
+  - el payload del cierre ahora incluye `cash_session_id`, `status`, `expected_amount`, `difference`, `opened_at`, `closed_at` y `summary`,
+  - `closures` se serializa como JSON dentro del formulario `application/x-www-form-urlencoded`.
+- También se limpió la cola local para marcar aperturas atoradas como ignoradas y reencolar cierres reales.
+- Se añadió un helper compartido de fecha/hora en frontend para fijar la visualización a `America/Mexico_City`.
+- Este ajuste impacta vistas como:
+  - reportes,
+  - historial de ventas,
+  - caja,
+  - respaldo,
+  - historial por cliente,
+  - cuentas por cobrar,
+  - productos,
+  - torneos,
+  - usuarios.
+
+### Notas operativas
+
+- Para que los cambios del proceso principal de Electron surtan efecto, es necesario reiniciar la aplicación antes de volver a intentar `Sincronizar ahora`.
 
 ### Diagnóstico operativo
 

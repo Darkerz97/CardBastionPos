@@ -204,6 +204,33 @@ async function postSyncFormPayload(db, path, payload = {}) {
   })
 }
 
+async function postSyncStringifiedFormPayload(db, path, payload = {}, jsonKeys = []) {
+  const settings = getServerSyncSettings(db)
+  const params = new URLSearchParams()
+  const body = {
+    ...(settings.storeId ? { store_id: settings.storeId } : {}),
+    device_code: settings.deviceName,
+    ...payload,
+  }
+
+  for (const [key, value] of Object.entries(body)) {
+    if (jsonKeys.includes(key)) {
+      params.append(key, JSON.stringify(value ?? null))
+      continue
+    }
+
+    appendFormValue(params, key, value)
+  }
+
+  return authorizedRequest(db, path, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: params.toString(),
+  })
+}
+
 async function getSyncResource(db, path, query = {}) {
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query || {})) {
@@ -224,6 +251,7 @@ module.exports = {
   authenticateWithServer,
   authorizedRequest,
   postSyncFormPayload,
+  postSyncStringifiedFormPayload,
   postSyncPayload,
   getSyncResource,
 }
