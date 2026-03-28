@@ -5,6 +5,7 @@ const XLSX = require('xlsx')
 const { getDb } = require('../database/db.cjs')
 const { requirePermission, getAuditActor } = require('../auth/helpers.cjs')
 const { logAudit } = require('../audit.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function normalizeNumber(value, fallback = 0) {
   const n = Number(value)
@@ -18,6 +19,7 @@ function normalizeText(value, fallback = '') {
 
 const PRODUCT_SELECT_FIELDS = `
   id,
+  COALESCE(remote_id, '') as remote_id,
   sku,
   barcode,
   name,
@@ -107,6 +109,15 @@ function getSingleMetaFromPayload(payload = {}) {
   }
 }
 
+function getProductSnapshot(db, productId) {
+  return db.prepare(`
+    SELECT ${PRODUCT_SELECT_FIELDS}
+    FROM products
+    WHERE id = ?
+    LIMIT 1
+  `).get(Number(productId))
+}
+
 function registerProductHandlers() {
   ipcMain.handle('products:selectImage', async () => {
     const fileResult = await dialog.showOpenDialog({
@@ -183,7 +194,7 @@ function registerProductHandlers() {
     `).all()
   })
 
-  ipcMain.handle('products:reactivate', (event, productId) => {
+  ipcMain.handle('products:reactivate', async (event, productId) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('products', 'reactivar productos')
@@ -209,10 +220,23 @@ function registerProductHandlers() {
       description: `Producto ${id} reactivado`,
     })
 
-    return { success: true, id }
+    const response = { success: true, id }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'product.reactivate',
+      entityType: 'product',
+      entityId: id,
+      action: 'reactivate',
+      payload: {
+        actor,
+        product: getProductSnapshot(db, id),
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('products:deactivate', (event, productId) => {
+  ipcMain.handle('products:deactivate', async (event, productId) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('products', 'desactivar productos')
@@ -238,7 +262,20 @@ function registerProductHandlers() {
       description: `Producto ${id} desactivado`,
     })
 
-    return { success: true, id }
+    const response = { success: true, id }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'product.deactivate',
+      entityType: 'product',
+      entityId: id,
+      action: 'deactivate',
+      payload: {
+        actor,
+        product: getProductSnapshot(db, id),
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('products:findByCode', (event, code) => {
@@ -270,7 +307,7 @@ function registerProductHandlers() {
     `).all()
   })
 
-  ipcMain.handle('products:create', (event, payload) => {
+  ipcMain.handle('products:create', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('products', 'crear productos')
@@ -360,14 +397,27 @@ function registerProductHandlers() {
       payloadJson: { sku: product.sku, category: product.category },
     })
 
-    return {
+    const response = {
       success: true,
       action: 'created',
       id: productId,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'product.create',
+      entityType: 'product',
+      entityId: productId,
+      action: 'create',
+      payload: {
+        actor,
+        product: getProductSnapshot(db, productId),
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('products:update', (event, payload) => {
+  ipcMain.handle('products:update', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('products', 'editar productos')
@@ -528,11 +578,24 @@ function registerProductHandlers() {
       payloadJson: { sku: product.sku, category: product.category },
     })
 
-    return {
+    const response = {
       success: true,
       action: 'updated',
       id: productId,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'product.update',
+      entityType: 'product',
+      entityId: productId,
+      action: 'update',
+      payload: {
+        actor,
+        product: getProductSnapshot(db, productId),
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('products:importExcel', async () => {
@@ -806,7 +869,7 @@ function registerProductHandlers() {
     }
   })
 
-  ipcMain.handle('products:delete', (event, payload) => {
+  ipcMain.handle('products:delete', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('products', 'eliminar productos')
@@ -851,7 +914,22 @@ function registerProductHandlers() {
       payloadJson: { sku: String(product.sku || '') },
     })
 
-    return { success: true, id: productId }
+    const response = { success: true, id: productId }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'product.delete',
+      entityType: 'product',
+      entityId: productId,
+      action: 'delete',
+      payload: {
+        actor,
+        id: productId,
+        sku: String(product.sku || ''),
+        name: String(product.name || ''),
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('products:getCatalogOptions', () => {

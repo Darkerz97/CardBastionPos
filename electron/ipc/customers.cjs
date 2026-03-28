@@ -1,5 +1,6 @@
 const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function normalizeText(value, fallback = '') {
   if (value === null || value === undefined) return fallback
@@ -10,7 +11,7 @@ function registerCustomerHandlers() {
 
   // Agregar crédito a un cliente
 
-    ipcMain.handle('customers:addCredit', (event, payload) => {
+    ipcMain.handle('customers:addCredit', async (event, payload) => {
     const db = getDb()
 
     const customerId = Number(payload?.customerId)
@@ -70,12 +71,27 @@ function registerCustomerHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       customerId,
       amount,
       newBalance,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'customer.credit_add',
+      entityType: 'customer',
+      entityId: customerId,
+      action: 'credit_add',
+      payload: {
+        customerId,
+        amount,
+        reason,
+        newBalance,
+      },
+    })
+
+    return response
   })
 
 //historial de clientes
@@ -379,7 +395,7 @@ function registerCustomerHandlers() {
     }
   })
 
-    ipcMain.handle('customers:useCredit', (event, payload) => {
+    ipcMain.handle('customers:useCredit', async (event, payload) => {
     const db = getDb()
 
     const customerId = Number(payload?.customerId)
@@ -447,15 +463,32 @@ function registerCustomerHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       customerId,
       amount,
       newBalance,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'customer.credit_use',
+      entityType: 'customer',
+      entityId: customerId,
+      action: 'credit_use',
+      payload: {
+        customerId,
+        amount,
+        reason,
+        referenceType,
+        referenceId,
+        newBalance,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('customers:create', (event, payload) => {
+  ipcMain.handle('customers:create', async (event, payload) => {
     const db = getDb()
 
     const customer = {
@@ -482,13 +515,26 @@ function registerCustomerHandlers() {
       customer.storeCredit
     )
 
-    return {
+    const response = {
       success: true,
       id: Number(result.lastInsertRowid),
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'customer.create',
+      entityType: 'customer',
+      entityId: Number(result.lastInsertRowid),
+      action: 'create',
+      payload: {
+        id: Number(result.lastInsertRowid),
+        customer,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('customers:update', (event, payload) => {
+  ipcMain.handle('customers:update', async (event, payload) => {
     const db = getDb()
     const customerId = Number(payload?.id)
 
@@ -524,10 +570,23 @@ function registerCustomerHandlers() {
       customerId
     )
 
-    return {
+    const response = {
       success: true,
       id: customerId,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'customer.update',
+      entityType: 'customer',
+      entityId: customerId,
+      action: 'update',
+      payload: {
+        id: customerId,
+        customer,
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('customers:search', (event, query) => {
@@ -555,7 +614,7 @@ function registerCustomerHandlers() {
     `).all(term, term, term)
   })
 
-  ipcMain.handle('customers:delete', (event, customerId) => {
+  ipcMain.handle('customers:delete', async (event, customerId) => {
     const db = getDb()
     const id = Number(customerId)
 
@@ -568,10 +627,22 @@ function registerCustomerHandlers() {
       WHERE id = ?
     `).run(id)
 
-    return {
+    const response = {
       success: true,
       id,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'customer.delete',
+      entityType: 'customer',
+      entityId: id,
+      action: 'delete',
+      payload: {
+        id,
+      },
+    })
+
+    return response
   })
 }
 

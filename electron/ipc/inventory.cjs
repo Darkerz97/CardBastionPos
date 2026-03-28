@@ -1,5 +1,6 @@
 const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function toNumber(value, fallback = 0) {
   const parsed = Number(value)
@@ -52,7 +53,7 @@ function registerInventoryHandlers() {
     }))
   })
 
-  ipcMain.handle('inventory:adjustStock', (event, payload) => {
+  ipcMain.handle('inventory:adjustStock', async (event, payload) => {
     const db = getDb()
 
     const productId = Number(payload?.productId)
@@ -130,15 +131,32 @@ function registerInventoryHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       productId,
       stockBefore,
       stockAfter,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'inventory.adjust',
+      entityType: 'product',
+      entityId: productId,
+      action: 'adjust',
+      payload: {
+        productId,
+        mode,
+        quantity,
+        notes,
+        stockBefore,
+        stockAfter,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('inventory:addStockEntry', (event, payload) => {
+  ipcMain.handle('inventory:addStockEntry', async (event, payload) => {
     const db = getDb()
 
     const productId = Number(payload?.productId)
@@ -210,12 +228,30 @@ function registerInventoryHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       productId,
       stockBefore,
       stockAfter,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'inventory.entry',
+      entityType: 'product',
+      entityId: productId,
+      action: 'entry',
+      payload: {
+        productId,
+        quantity,
+        cost,
+        notes,
+        reference,
+        stockBefore,
+        stockAfter,
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('inventory:getLowStockProducts', () => {

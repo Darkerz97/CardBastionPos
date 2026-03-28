@@ -1,4 +1,5 @@
 const { logAudit } = require('../audit.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function generateFolio() {
   const now = new Date()
@@ -414,7 +415,24 @@ function fetchSaleResult(db, saleId) {
   }
 }
 
-function createSaleRecord(db, payload, actor) {
+async function syncSaleChange(db, action, saleResult, actor, extra = {}) {
+  if (!saleResult?.sale) return
+
+  await enqueueAndFlushServerSync(db, {
+    eventType: `sale.${action}`,
+    entityType: 'sale',
+    entityId: saleResult.sale.id,
+    action,
+    payload: {
+      actor: actor || null,
+      sale: saleResult.sale,
+      items: saleResult.items || [],
+      ...extra,
+    },
+  })
+}
+
+async function createSaleRecord(db, payload, actor) {
   const openSession = db.prepare(`
     SELECT id
     FROM cash_sessions
@@ -529,10 +547,12 @@ function createSaleRecord(db, payload, actor) {
   })
 
   const saleId = transaction()
-  return fetchSaleResult(db, saleId)
+  const saleResult = fetchSaleResult(db, saleId)
+  await syncSaleChange(db, 'create', saleResult, actor, { request: payload })
+  return saleResult
 }
 
-function updateSaleRecord(db, saleId, payload, actor) {
+async function updateSaleRecord(db, saleId, payload, actor) {
   const existingSale = getSaleSnapshot(db, saleId)
 
   if (!existingSale || existingSale.deleted_at) {
@@ -637,10 +657,12 @@ function updateSaleRecord(db, saleId, payload, actor) {
   })
 
   transaction()
-  return fetchSaleResult(db, saleId)
+  const saleResult = fetchSaleResult(db, saleId)
+  await syncSaleChange(db, 'update', saleResult, actor, { request: payload })
+  return saleResult
 }
 
-function deleteSaleRecord(db, saleId, actor, reason = '') {
+async function deleteSaleRecord(db, saleId, actor, reason = '') {
   const existingSale = getSaleSnapshot(db, saleId)
 
   if (!existingSale || existingSale.deleted_at) {
@@ -677,6 +699,20 @@ function deleteSaleRecord(db, saleId, actor, reason = '') {
   })
 
   transaction()
+
+  await enqueueAndFlushServerSync(db, {
+    eventType: 'sale.delete',
+    entityType: 'sale',
+    entityId: Number(saleId),
+    action: 'delete',
+    payload: {
+      actor: actor || null,
+      saleId: Number(saleId),
+      folio: String(existingSale.folio || ''),
+      reason: String(reason || ''),
+    },
+  })
+
   return { success: true, id: Number(saleId) }
 }
 

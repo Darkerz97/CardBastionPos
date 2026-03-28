@@ -2,6 +2,7 @@ const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
 const { requirePermission, getAuditActor } = require('../auth/helpers.cjs')
 const { logAudit } = require('../audit.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function getRangeClause(column, closedAt) {
   if (closedAt) {
@@ -179,7 +180,7 @@ function registerCashHandlers() {
     return session || null
   })
 
-  ipcMain.handle('cash:openSession', (event, openingAmount) => {
+  ipcMain.handle('cash:openSession', async (event, openingAmount) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('cash', 'abrir caja')
@@ -227,13 +228,27 @@ function registerCashHandlers() {
       payloadJson: { openingAmount: Number(openingAmount || 0) },
     })
 
-    return {
+    const response = {
       success: true,
       sessionId,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'cash_session.open',
+      entityType: 'cash_session',
+      entityId: sessionId,
+      action: 'open',
+      payload: {
+        actor,
+        openingAmount: Number(openingAmount || 0),
+        result: response,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('cash:closeSession', (event, payload) => {
+  ipcMain.handle('cash:closeSession', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('cash', 'cerrar caja')
@@ -296,10 +311,25 @@ function registerCashHandlers() {
       },
     })
 
-    return {
+    const response = {
       success: true,
       summary,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'cash_session.close',
+      entityType: 'cash_session',
+      entityId: Number(openSession.id),
+      action: 'close',
+      payload: {
+        actor,
+        closingAmount: Number(closingAmount || 0),
+        notes: String(notes || ''),
+        summary,
+      },
+    })
+
+    return response
   })
 
   ipcMain.handle('cash:getCurrentSummary', () => {
@@ -388,7 +418,7 @@ function registerCashHandlers() {
     }))
   })
 
-  ipcMain.handle('cash:addWithdrawal', (event, payload) => {
+  ipcMain.handle('cash:addWithdrawal', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('cash', 'registrar retiro de efectivo')
@@ -463,14 +493,32 @@ function registerCashHandlers() {
       },
     })
 
-    return {
+    const response = {
       success: true,
       movementId: Number(result.lastInsertRowid),
       summary: getSummaryForSession(db, openSession, null),
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'cash_movement.withdrawal',
+      entityType: 'cash_movement',
+      entityId: Number(result.lastInsertRowid),
+      action: 'withdrawal',
+      payload: {
+        actor,
+        cashSessionId: Number(openSession.id),
+        amount,
+        reason,
+        signature,
+        notes,
+        result: response,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('cash:updateSession', (event, payload) => {
+  ipcMain.handle('cash:updateSession', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('cash', 'editar cierres de caja')
@@ -526,10 +574,25 @@ function registerCashHandlers() {
       payloadJson: { closingAmount, notes },
     })
 
-    return { success: true, summary }
+    const response = { success: true, summary }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'cash_session.update',
+      entityType: 'cash_session',
+      entityId: sessionId,
+      action: 'update',
+      payload: {
+        actor,
+        closingAmount,
+        notes,
+        summary,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('cash:deleteSession', (event, payload) => {
+  ipcMain.handle('cash:deleteSession', async (event, payload) => {
     const db = getDb()
     const actor = getAuditActor()
     requirePermission('cash', 'eliminar cierres de caja')
@@ -572,7 +635,21 @@ function registerCashHandlers() {
       payloadJson: { reason: String(payload?.reason || '') },
     })
 
-    return { success: true, id: sessionId }
+    const response = { success: true, id: sessionId }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'cash_session.delete',
+      entityType: 'cash_session',
+      entityId: sessionId,
+      action: 'delete',
+      payload: {
+        actor,
+        reason: String(payload?.reason || ''),
+        id: sessionId,
+      },
+    })
+
+    return response
   })
 }
 

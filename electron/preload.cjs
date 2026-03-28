@@ -88,6 +88,17 @@ contextBridge.exposeInMainWorld('posAPI', {
   setPrintTicketsEnabled: (enabled) => ipcRenderer.invoke('settings:setPrintTicketsEnabled', enabled),
   getPosCustomization: () => ipcRenderer.invoke('settings:getPosCustomization'),
   updatePosCustomization: (payload) => ipcRenderer.invoke('settings:updatePosCustomization', payload),
+  getServerSync: () => ipcRenderer.invoke('settings:getServerSync'),
+  updateServerSync: (payload) => ipcRenderer.invoke('settings:updateServerSync', payload),
+  flushServerSync: () => ipcRenderer.invoke('settings:flushServerSync'),
+  authenticateServerSync: (payload) => ipcRenderer.invoke('settings:authenticateServerSync', payload),
+  getServerSyncLogs: (limit) => ipcRenderer.invoke('settings:getServerSyncLogs', limit),
+  onServerSyncStatusChanged: (callback) => {
+    if (typeof callback !== 'function') return () => {}
+    const listener = (_event, payload) => callback(payload)
+    ipcRenderer.on('server-sync:status-changed', listener)
+    return () => ipcRenderer.removeListener('server-sync:status-changed', listener)
+  },
 
   getPrintSettings: async () => {
     const enabled = await ipcRenderer.invoke('settings:getPrintTicketsEnabled')

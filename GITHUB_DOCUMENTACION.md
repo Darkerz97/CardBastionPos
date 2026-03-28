@@ -4,6 +4,17 @@ Fecha: 2026-03-27
 
 ## Alcance de esta actualización
 
+Se agregó una capa nueva para integrar el POS local con un backend Laravel productivo:
+
+- configuración centralizada de `API_BASE_URL`
+- autenticación remota con Sanctum usando `POST /auth/login`
+- almacenamiento local seguro de credenciales/tokens
+- cola local de sincronización con reintentos exponenciales
+- logs persistentes de sync
+- scheduler automático
+- ejecución manual de autenticación y sincronización desde `Configuracion`
+- soporte base para `push` y `pull` configurable por ruta
+
 Se consolidó una segunda capa operativa sobre ventas, preventas y cobranza:
 
 - catálogo reutilizable de preventas
@@ -208,11 +219,86 @@ También se mantienen los cambios estructurales integrados en la actualización 
 - color principal
 - mostrar u ocultar banner
 - modo compacto
+- `API_BASE_URL`
+- email backend
+- password backend
+- `device_name`
+- ruta de login
+- ruta de push
+- ruta de pull
+- tamaño de lote
+- timeout
+- intervalo de sincronización
+- base de reintento
+- activar auto sync
+- activar pull sync
 
 ### Impacto visual
 
 - El POS consume esta configuración en tiempo real al cargar.
 - El color principal se aplica a varios elementos clave de la interfaz.
+
+## Integración Laravel y sincronización
+
+### Arquitectura
+
+- Se creó una capa modular en `electron/services/sync/`:
+  - `constants.cjs`
+  - `settings-store.cjs`
+  - `logger.cjs`
+  - `client.cjs`
+  - `service.cjs`
+- `electron/ipc/server-sync.cjs` ahora reexporta el servicio central.
+- `electron/main.cjs` arranca un ciclo inicial y un scheduler recurrente.
+
+### Qué resuelve
+
+- autenticación remota con Sanctum
+- persistencia local de token
+- envío de eventos locales pendientes al backend
+- reintento automático con backoff
+- sincronización manual cuando el operador lo solicita
+- recepción base de cambios remotos para productos y clientes
+- emisión de estado en tiempo real al renderer
+
+### Persistencia local nueva
+
+- `server_sync_queue` ahora guarda también:
+  - `next_attempt_at`
+  - `locked_at`
+  - `last_status_code`
+  - `response_json`
+- Se creó la tabla `server_sync_logs`.
+- `customers` y `products` ahora incluyen `remote_id`.
+
+### Frontend / configuración
+
+- `src/views/SettingsView.vue` ahora permite:
+  - capturar credenciales remotas
+  - autenticar contra Laravel
+  - lanzar sincronización manual
+  - consultar estado de cola
+  - ver logs recientes
+
+### Contrato esperado de login
+
+Base URL:
+
+- `https://TU_DOMINIO/api`
+
+Ruta:
+
+- `POST /auth/login`
+
+Payload:
+
+```json
+{
+  "email": "admin@cardbastion.com",
+  "password": "TU_PASSWORD",
+  "device_name": "POS-LEON-01"
+}
+```
 
 ## Navegación persistente
 

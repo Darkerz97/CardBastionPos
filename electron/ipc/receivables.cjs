@@ -1,5 +1,6 @@
 const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
+const { enqueueAndFlushServerSync } = require('./server-sync.cjs')
 
 function toNumber(value, fallback = 0) {
   const n = Number(value)
@@ -309,7 +310,7 @@ function registerReceivableHandlers() {
     }
   })
 
-  ipcMain.handle('receivables:addPayment', (event, payload) => {
+  ipcMain.handle('receivables:addPayment', async (event, payload) => {
     const db = getDb()
 
     const saleId = Number(payload?.saleId)
@@ -389,7 +390,7 @@ function registerReceivableHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       saleId,
       amount,
@@ -397,9 +398,27 @@ function registerReceivableHandlers() {
       amountDue: nextAmountDue,
       paymentStatus: nextStatus,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'receivable_payment.create',
+      entityType: 'sale',
+      entityId: saleId,
+      action: 'payment',
+      payload: {
+        saleId,
+        amount,
+        paymentMethod,
+        notes,
+        amountPaid: nextAmountPaid,
+        amountDue: nextAmountDue,
+        paymentStatus: nextStatus,
+      },
+    })
+
+    return response
   })
 
-  ipcMain.handle('receivables:addCustomerPayment', (event, payload) => {
+  ipcMain.handle('receivables:addCustomerPayment', async (event, payload) => {
     const db = getDb()
 
     const customerId = Number(payload?.customerId)
@@ -502,7 +521,7 @@ function registerReceivableHandlers() {
 
     transaction()
 
-    return {
+    const response = {
       success: true,
       customerId,
       requestedAmount: Number(amount || 0),
@@ -512,6 +531,16 @@ function registerReceivableHandlers() {
       totalDueAfter: Math.max(Number(totalDue || 0) - Number(amount || 0), 0),
       applied,
     }
+
+    await enqueueAndFlushServerSync(db, {
+      eventType: 'receivable_payment.bulk_create',
+      entityType: 'customer',
+      entityId: customerId,
+      action: 'bulk_payment',
+      payload: response,
+    })
+
+    return response
   })
 
   ipcMain.handle('receivables:getSummary', () => {

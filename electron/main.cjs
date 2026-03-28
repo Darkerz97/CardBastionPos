@@ -18,6 +18,8 @@ const { registerReceivableHandlers } = require('./ipc/receivables.cjs')
 const { registerSinglesHandlers } = require('./ipc/singles.cjs')
 const { registerPreorderHandlers } = require('./ipc/preorders.cjs')
 const { registerUserHandlers } = require('./ipc/users.cjs')
+const { runServerSyncCycle, startServerSyncScheduler, stopServerSyncScheduler } = require('./ipc/server-sync.cjs')
+const { getDb } = require('./database/db.cjs')
 
 
 const isDev = !app.isPackaged
@@ -73,6 +75,10 @@ app.whenReady().then(() => {
   registerPreorderHandlers()
   registerUserHandlers()
   createWindow()
+  startServerSyncScheduler(getDb())
+  runServerSyncCycle(getDb(), { limit: 100 }).catch((error) => {
+    console.error('No se pudo ejecutar el ciclo inicial de sincronizacion con el servidor:', error)
+  })
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
@@ -80,4 +86,8 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
+})
+
+app.on('before-quit', () => {
+  stopServerSyncScheduler()
 })

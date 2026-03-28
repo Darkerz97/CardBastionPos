@@ -1,5 +1,14 @@
 const { ipcMain } = require('electron')
 const { getDb } = require('../database/db.cjs')
+const {
+  authenticateWithServer,
+  getServerSyncSettings,
+  getServerSyncStatus,
+  listSyncLogs,
+  runServerSyncCycle,
+  startServerSyncScheduler,
+  updateServerSyncSettings,
+} = require('./server-sync.cjs')
 
 function getSettingValue(db, key, defaultValue = null) {
   const row = db.prepare(`
@@ -65,6 +74,60 @@ function registerSettingsHandlers() {
   ipcMain.handle('settings:getPosCustomization', () => {
     const db = getDb()
     return getPosCustomization(db)
+  })
+
+  ipcMain.handle('settings:getServerSync', () => {
+    const db = getDb()
+    return {
+      settings: getServerSyncSettings(db),
+      status: getServerSyncStatus(db),
+    }
+  })
+
+  ipcMain.handle('settings:updateServerSync', async (event, payload = {}) => {
+    const db = getDb()
+    const settings = updateServerSyncSettings(db, payload)
+    startServerSyncScheduler(db)
+    const cycleResult = await runServerSyncCycle(db, { limit: 50 })
+
+    return {
+      success: true,
+      settings,
+      status: getServerSyncStatus(db),
+      cycleResult,
+    }
+  })
+
+  ipcMain.handle('settings:flushServerSync', async () => {
+    const db = getDb()
+    const cycleResult = await runServerSyncCycle(db, { limit: 100 })
+
+    return {
+      success: Boolean(cycleResult?.success),
+      cycleResult,
+      status: getServerSyncStatus(db),
+    }
+  })
+
+  ipcMain.handle('settings:authenticateServerSync', async (event, payload = {}) => {
+    const db = getDb()
+    const result = await authenticateWithServer(db, payload)
+
+    return {
+      success: true,
+      result,
+      settings: getServerSyncSettings(db),
+      status: getServerSyncStatus(db),
+    }
+  })
+
+  ipcMain.handle('settings:getServerSyncLogs', (event, limit = 100) => {
+    const db = getDb()
+
+    return {
+      success: true,
+      logs: listSyncLogs(db, limit),
+    }
   })
 
   ipcMain.handle('settings:updatePosCustomization', (event, payload = {}) => {

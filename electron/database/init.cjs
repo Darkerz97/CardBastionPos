@@ -151,6 +151,13 @@ function initializeDatabase() {
   }
 
   try {
+    db.prepare(`ALTER TABLE customers ADD COLUMN remote_id TEXT`).run()
+    console.log('Columna remote_id agregada a customers')
+  } catch (error) {
+    console.log('remote_id ya existe en customers')
+  }
+
+  try {
     db.prepare(`ALTER TABLE sales ADD COLUMN credit_used REAL DEFAULT 0`).run()
     console.log('Columna credit_used agregada a sales')
   } catch (error) {
@@ -372,6 +379,13 @@ function initializeDatabase() {
     console.log('Columna pricing_formula_value agregada a products')
   } catch (error) {
     console.log('pricing_formula_value ya existe en products')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE products ADD COLUMN remote_id TEXT`).run()
+    console.log('Columna remote_id agregada a products')
+  } catch (error) {
+    console.log('remote_id ya existe en products')
   }
 
   db.prepare(`
@@ -633,6 +647,62 @@ function initializeDatabase() {
       body TEXT NOT NULL,
       status TEXT NOT NULL,
       error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS server_sync_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      action TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      last_attempt_at DATETIME,
+      synced_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `).run()
+
+  try {
+    db.prepare(`ALTER TABLE server_sync_queue ADD COLUMN next_attempt_at DATETIME`).run()
+    console.log('Columna next_attempt_at agregada a server_sync_queue')
+  } catch (error) {
+    console.log('next_attempt_at ya existe en server_sync_queue')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE server_sync_queue ADD COLUMN locked_at DATETIME`).run()
+    console.log('Columna locked_at agregada a server_sync_queue')
+  } catch (error) {
+    console.log('locked_at ya existe en server_sync_queue')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE server_sync_queue ADD COLUMN last_status_code INTEGER`).run()
+    console.log('Columna last_status_code agregada a server_sync_queue')
+  } catch (error) {
+    console.log('last_status_code ya existe en server_sync_queue')
+  }
+
+  try {
+    db.prepare(`ALTER TABLE server_sync_queue ADD COLUMN response_json TEXT`).run()
+    console.log('Columna response_json agregada a server_sync_queue')
+  } catch (error) {
+    console.log('response_json ya existe en server_sync_queue')
+  }
+
+  db.prepare(`
+    CREATE TABLE IF NOT EXISTS server_sync_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      level TEXT NOT NULL DEFAULT 'info',
+      scope TEXT NOT NULL DEFAULT 'sync',
+      message TEXT NOT NULL,
+      payload_json TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `).run()

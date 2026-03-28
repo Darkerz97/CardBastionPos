@@ -7,6 +7,7 @@ Repositorio inicializado el 2026-03-21.
 - Guía de cambios para GitHub: `GITHUB_DOCUMENTACION.md`
 
 ## Cambios recientes
+- Integración base del POS local con backend Laravel mediante sincronización modular, login Sanctum, cola local, reintentos, logs persistentes y configuración centralizada.
 - Catálogo de preventas con alta, edición, desactivación, asignación a cliente e importación/exportación en Excel.
 - Historial de ventas con búsqueda por folio, cliente, teléfono, método de pago y rango de fechas.
 - Cuentas por cobrar con resumen e items por venta dentro del detalle.
@@ -58,7 +59,35 @@ Repositorio inicializado el 2026-03-21.
   - textos del banner,
   - color principal,
   - visibilidad del banner,
-  - modo compacto.
+  - modo compacto,
+  - integración Laravel.
+
+### Sincronización Laravel
+- Se agregó una capa dedicada de sincronización para conectar el POS local con un backend Laravel existente.
+- La configuración se centraliza desde `Configuracion > Sincronizacion con servidor`.
+- Parámetros principales:
+  - `API_BASE_URL`
+  - email de autenticación backend
+  - password backend
+  - `device_name`
+  - rutas configurables para login, push y pull
+  - tamaño de lote
+  - timeout
+  - intervalo de auto sync
+  - base de reintento
+- El login remoto usa `POST /auth/login` con:
+  - `email`
+  - `password`
+  - `device_name`
+- La sincronización incluye:
+  - cola local `server_sync_queue`
+  - logs persistentes `server_sync_logs`
+  - reintentos con backoff
+  - scheduler automático
+  - sincronización manual desde pantalla de configuración
+  - soporte para `push` y `pull`
+- La autenticación remota guarda el token localmente para reutilizarlo en los ciclos de sincronización.
+- Los cambios locales siguen funcionando aunque el servidor no esté disponible; la cola queda pendiente hasta poder reintentar.
 
 ### Caja
 - Se agregó registro de retiros de efectivo.
@@ -152,3 +181,17 @@ Repositorio inicializado el 2026-03-21.
 ## Acceso inicial
 - Usuario: `admin`
 - NIP: `1234`
+
+## Backend Laravel esperado
+- Base URL configurada como `https://TU_DOMINIO/api`
+- Login remoto esperado:
+  - `POST /auth/login`
+- Payload:
+
+```json
+{
+  "email": "admin@cardbastion.com",
+  "password": "TU_PASSWORD",
+  "device_name": "POS-LEON-01"
+}
+```
