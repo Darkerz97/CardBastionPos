@@ -111,6 +111,10 @@ function registerSettingsHandlers() {
 
   ipcMain.handle('settings:authenticateServerSync', async (event, payload = {}) => {
     const db = getDb()
+    if (payload && typeof payload === 'object') {
+      updateServerSyncSettings(db, payload)
+      startServerSyncScheduler(db)
+    }
     const result = await authenticateWithServer(db, payload)
 
     return {

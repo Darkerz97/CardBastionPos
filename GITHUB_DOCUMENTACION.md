@@ -261,6 +261,43 @@ También se mantienen los cambios estructurales integrados en la actualización 
 - recepción base de cambios remotos para productos y clientes
 - emisión de estado en tiempo real al renderer
 
+### Alineación final con el backend real
+
+- La sincronización dejó de usar una sola ruta genérica y ahora trabaja por endpoint de dominio:
+  - `sync/upload-sales`
+  - `sync/upload-cash-closures`
+  - `sync/upload-inventory-movements`
+  - `sync/products`
+  - `sync/customers`
+  - `sync/catalog`
+- El login remoto quedó validado contra `POST /api/auth/login`.
+- El `device_name` del POS se usa como `device_code` de sync y debe existir activo en la tabla `devices` del backend.
+
+### Correcciones de compatibilidad con Laravel
+
+- Las ventas del POS local ahora se transforman al contrato de `UploadSalesRequest`.
+- Los items ya no mandan `product_id` local de SQLite cuando ese valor no corresponde al servidor.
+- Si el producto fue sincronizado desde Laravel, se usa `products.remote_id` como `product_id` remoto.
+- Si no hay `remote_id`, la referencia del producto cae a `sku` o `barcode`.
+- Los clientes usan `remote_id` cuando existe; en su defecto se intenta resolver por email o teléfono.
+- Se eliminó el envío de `user_uuid` y `customer_uuid` artificiales generados localmente, porque Laravel los valida contra UUIDs reales de su propia base.
+- La cola local ahora inspecciona los resultados devueltos en `data[]` por Laravel y clasifica cada registro como:
+  - sincronizado,
+  - omitido,
+  - conflicto,
+  - fallo.
+- Con esto se corrige un bug previo donde una respuesta HTTP `200` con conflicto interno podía dejar una venta marcada como `synced` aunque no se hubiera creado en servidor.
+
+### Diagnóstico operativo
+
+- Los logs persistentes en `server_sync_logs` ya guardan mejor contexto del request que falla.
+- Los conflictos reales reportados durante la integración fueron:
+  - ruta no encontrada,
+  - `missing_device`,
+  - `validation.exists` por `product_id` local,
+  - `missing_user` por UUID local no válido.
+- La implementación actual ya corrige esos desfaces del lado POS.
+
 ### Persistencia local nueva
 
 - `server_sync_queue` ahora guarda también:

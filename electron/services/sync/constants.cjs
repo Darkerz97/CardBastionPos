@@ -7,6 +7,12 @@ const DEFAULT_API_BASE_URL = String(process.env.API_BASE_URL || '').trim()
 const DEFAULT_AUTH_PATH = 'auth/login'
 const DEFAULT_PUSH_PATH = 'sync/events/batch'
 const DEFAULT_PULL_PATH = 'sync/pull'
+const DEFAULT_UPLOAD_SALES_PATH = 'sync/upload-sales'
+const DEFAULT_UPLOAD_CASH_CLOSURES_PATH = 'sync/upload-cash-closures'
+const DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH = 'sync/upload-inventory-movements'
+const DEFAULT_PULL_PRODUCTS_PATH = 'sync/products'
+const DEFAULT_PULL_CUSTOMERS_PATH = 'sync/customers'
+const DEFAULT_PULL_CATALOG_PATH = 'sync/catalog'
 const DEFAULT_DEVICE_NAME = 'POS-LOCAL-01'
 const SYNC_SOURCE = 'cardbastion-pos'
 
@@ -20,6 +26,12 @@ module.exports = {
   DEFAULT_AUTH_PATH,
   DEFAULT_PUSH_PATH,
   DEFAULT_PULL_PATH,
+  DEFAULT_UPLOAD_SALES_PATH,
+  DEFAULT_UPLOAD_CASH_CLOSURES_PATH,
+  DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH,
+  DEFAULT_PULL_PRODUCTS_PATH,
+  DEFAULT_PULL_CUSTOMERS_PATH,
+  DEFAULT_PULL_CATALOG_PATH,
   DEFAULT_DEVICE_NAME,
   SYNC_SOURCE,
 }

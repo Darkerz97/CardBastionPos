@@ -4,12 +4,18 @@ const {
   DEFAULT_AUTH_PATH,
   DEFAULT_DEVICE_NAME,
   DEFAULT_MAX_SYNC_ATTEMPTS,
+  DEFAULT_PULL_CATALOG_PATH,
+  DEFAULT_PULL_CUSTOMERS_PATH,
+  DEFAULT_PULL_PRODUCTS_PATH,
   DEFAULT_PULL_PATH,
   DEFAULT_PUSH_PATH,
   DEFAULT_RETRY_BASE_MS,
   DEFAULT_SYNC_BATCH_SIZE,
   DEFAULT_SYNC_INTERVAL_MS,
   DEFAULT_SYNC_TIMEOUT_MS,
+  DEFAULT_UPLOAD_CASH_CLOSURES_PATH,
+  DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH,
+  DEFAULT_UPLOAD_SALES_PATH,
 } = require('./constants.cjs')
 
 function getSettingValue(db, key, defaultValue = null) {
@@ -99,6 +105,12 @@ function buildPublicSettings(db) {
     authPath: normalizePathSegment(getSettingValue(db, 'server_sync_auth_path', DEFAULT_AUTH_PATH), DEFAULT_AUTH_PATH),
     pushPath: normalizePathSegment(getSettingValue(db, 'server_sync_push_path', DEFAULT_PUSH_PATH), DEFAULT_PUSH_PATH),
     pullPath: normalizePathSegment(getSettingValue(db, 'server_sync_pull_path', DEFAULT_PULL_PATH), DEFAULT_PULL_PATH),
+    uploadSalesPath: normalizePathSegment(getSettingValue(db, 'server_sync_upload_sales_path', DEFAULT_UPLOAD_SALES_PATH), DEFAULT_UPLOAD_SALES_PATH),
+    uploadCashClosuresPath: normalizePathSegment(getSettingValue(db, 'server_sync_upload_cash_closures_path', DEFAULT_UPLOAD_CASH_CLOSURES_PATH), DEFAULT_UPLOAD_CASH_CLOSURES_PATH),
+    uploadInventoryMovementsPath: normalizePathSegment(getSettingValue(db, 'server_sync_upload_inventory_movements_path', DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH), DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH),
+    pullProductsPath: normalizePathSegment(getSettingValue(db, 'server_sync_pull_products_path', DEFAULT_PULL_PRODUCTS_PATH), DEFAULT_PULL_PRODUCTS_PATH),
+    pullCustomersPath: normalizePathSegment(getSettingValue(db, 'server_sync_pull_customers_path', DEFAULT_PULL_CUSTOMERS_PATH), DEFAULT_PULL_CUSTOMERS_PATH),
+    pullCatalogPath: normalizePathSegment(getSettingValue(db, 'server_sync_pull_catalog_path', DEFAULT_PULL_CATALOG_PATH), DEFAULT_PULL_CATALOG_PATH),
     authEmail: String(getSettingValue(db, 'server_sync_auth_email', '') || '').trim(),
     deviceName: String(getSettingValue(db, 'server_sync_device_name', DEFAULT_DEVICE_NAME) || DEFAULT_DEVICE_NAME).trim(),
     storeId: String(getSettingValue(db, 'server_sync_store_id', '') || '').trim(),
@@ -136,6 +148,12 @@ function updateServerSyncSettings(db, payload = {}) {
     authPath: payload.authPath === undefined ? current.authPath : normalizePathSegment(payload.authPath, DEFAULT_AUTH_PATH),
     pushPath: payload.pushPath === undefined ? current.pushPath : normalizePathSegment(payload.pushPath, DEFAULT_PUSH_PATH),
     pullPath: payload.pullPath === undefined ? current.pullPath : normalizePathSegment(payload.pullPath, DEFAULT_PULL_PATH),
+    uploadSalesPath: payload.uploadSalesPath === undefined ? current.uploadSalesPath : normalizePathSegment(payload.uploadSalesPath, DEFAULT_UPLOAD_SALES_PATH),
+    uploadCashClosuresPath: payload.uploadCashClosuresPath === undefined ? current.uploadCashClosuresPath : normalizePathSegment(payload.uploadCashClosuresPath, DEFAULT_UPLOAD_CASH_CLOSURES_PATH),
+    uploadInventoryMovementsPath: payload.uploadInventoryMovementsPath === undefined ? current.uploadInventoryMovementsPath : normalizePathSegment(payload.uploadInventoryMovementsPath, DEFAULT_UPLOAD_INVENTORY_MOVEMENTS_PATH),
+    pullProductsPath: payload.pullProductsPath === undefined ? current.pullProductsPath : normalizePathSegment(payload.pullProductsPath, DEFAULT_PULL_PRODUCTS_PATH),
+    pullCustomersPath: payload.pullCustomersPath === undefined ? current.pullCustomersPath : normalizePathSegment(payload.pullCustomersPath, DEFAULT_PULL_CUSTOMERS_PATH),
+    pullCatalogPath: payload.pullCatalogPath === undefined ? current.pullCatalogPath : normalizePathSegment(payload.pullCatalogPath, DEFAULT_PULL_CATALOG_PATH),
     authEmail: payload.authEmail === undefined ? current.authEmail : String(payload.authEmail || '').trim(),
     deviceName: payload.deviceName === undefined ? current.deviceName : String(payload.deviceName || DEFAULT_DEVICE_NAME).trim(),
     storeId: payload.storeId === undefined ? current.storeId : String(payload.storeId || '').trim(),
@@ -154,6 +172,12 @@ function updateServerSyncSettings(db, payload = {}) {
   setSettingValue(db, 'server_sync_auth_path', next.authPath)
   setSettingValue(db, 'server_sync_push_path', next.pushPath)
   setSettingValue(db, 'server_sync_pull_path', next.pullPath)
+  setSettingValue(db, 'server_sync_upload_sales_path', next.uploadSalesPath)
+  setSettingValue(db, 'server_sync_upload_cash_closures_path', next.uploadCashClosuresPath)
+  setSettingValue(db, 'server_sync_upload_inventory_movements_path', next.uploadInventoryMovementsPath)
+  setSettingValue(db, 'server_sync_pull_products_path', next.pullProductsPath)
+  setSettingValue(db, 'server_sync_pull_customers_path', next.pullCustomersPath)
+  setSettingValue(db, 'server_sync_pull_catalog_path', next.pullCatalogPath)
   setSettingValue(db, 'server_sync_auth_email', next.authEmail)
   setSettingValue(db, 'server_sync_device_name', next.deviceName || DEFAULT_DEVICE_NAME)
   setSettingValue(db, 'server_sync_store_id', next.storeId)

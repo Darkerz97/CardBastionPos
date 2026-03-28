@@ -146,47 +146,84 @@ async function authorizedRequest(db, path, options = {}, attemptReauth = true) {
   }
 }
 
-async function pushServerEvents(db, rows = []) {
+async function postSyncPayload(db, path, payload = {}) {
   const settings = getServerSyncSettings(db)
+  const body = {
+    ...(settings.storeId ? { store_id: settings.storeId } : {}),
+    device_code: settings.deviceName,
+    ...payload,
+  }
 
-  return authorizedRequest(db, settings.pushPath, {
+  return authorizedRequest(db, path, {
     method: 'POST',
-    body: JSON.stringify({
-      source: SYNC_SOURCE,
-      device_name: settings.deviceName,
-      store_id: settings.storeId || null,
-      sent_at: new Date().toISOString(),
-      events: rows,
-    }),
+    body: JSON.stringify(body),
   })
 }
 
-async function pullServerChanges(db, payload = {}) {
-  const settings = getServerSyncSettings(db)
-
-  if (!settings.pullEnabled) {
-    return {
-      success: true,
-      skipped: true,
-      reason: 'pull_disabled',
-      changes: [],
-    }
+function appendFormValue(params, key, value) {
+  if (value === null || value === undefined) {
+    return
   }
 
-  return authorizedRequest(db, settings.pullPath, {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => {
+      appendFormValue(params, `${key}[${index}]`, item)
+    })
+    return
+  }
+
+  if (typeof value === 'object') {
+    for (const [childKey, childValue] of Object.entries(value)) {
+      appendFormValue(params, `${key}[${childKey}]`, childValue)
+    }
+    return
+  }
+
+  params.append(key, String(value))
+}
+
+async function postSyncFormPayload(db, path, payload = {}) {
+  const settings = getServerSyncSettings(db)
+  const params = new URLSearchParams()
+  const body = {
+    ...(settings.storeId ? { store_id: settings.storeId } : {}),
+    device_code: settings.deviceName,
+    ...payload,
+  }
+
+  for (const [key, value] of Object.entries(body)) {
+    appendFormValue(params, key, value)
+  }
+
+  return authorizedRequest(db, path, {
     method: 'POST',
-    body: JSON.stringify({
-      source: SYNC_SOURCE,
-      device_name: settings.deviceName,
-      store_id: settings.storeId || null,
-      cursor: payload.cursor === undefined ? settings.lastCursor || null : payload.cursor,
-      limit: Number(payload.limit || settings.batchSize || 25),
-    }),
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: params.toString(),
+  })
+}
+
+async function getSyncResource(db, path, query = {}) {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(query || {})) {
+    if (value === null || value === undefined || value === '') continue
+    params.set(key, String(value))
+  }
+
+  const finalPath = params.toString()
+    ? `${String(path || '').replace(/^\/+/g, '')}?${params.toString()}`
+    : path
+
+  return authorizedRequest(db, finalPath, {
+    method: 'GET',
   })
 }
 
 module.exports = {
   authenticateWithServer,
-  pushServerEvents,
-  pullServerChanges,
+  authorizedRequest,
+  postSyncFormPayload,
+  postSyncPayload,
+  getSyncResource,
 }

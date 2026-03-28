@@ -88,6 +88,20 @@ Repositorio inicializado el 2026-03-21.
   - soporte para `push` y `pull`
 - La autenticación remota guarda el token localmente para reutilizarlo en los ciclos de sincronización.
 - Los cambios locales siguen funcionando aunque el servidor no esté disponible; la cola queda pendiente hasta poder reintentar.
+- La integración quedó alineada con rutas separadas del backend Laravel:
+  - `POST /api/sync/upload-sales`
+  - `POST /api/sync/upload-cash-closures`
+  - `POST /api/sync/upload-inventory-movements`
+  - `GET /api/sync/products`
+  - `GET /api/sync/customers`
+  - `GET /api/sync/catalog`
+- El `device_name` configurado en el POS debe coincidir exactamente con `devices.device_code` en Laravel.
+- Las ventas ya no envían IDs locales de SQLite como si fueran IDs del servidor:
+  - productos usan `remote_id` cuando existe,
+  - si no existe, se intenta resolver por `sku` o `barcode`,
+  - clientes usan `remote_id`, `email` o `phone` cuando aplica.
+- El POS ya no inventa `user_uuid` o `customer_uuid` para sincronizar con Laravel.
+- La cola ahora distingue correctamente entre respuestas `created`, `skipped`, `conflict` y `failed` devueltas por el backend, evitando marcar como sincronizado un registro rechazado por Laravel.
 
 ### Caja
 - Se agregó registro de retiros de efectivo.

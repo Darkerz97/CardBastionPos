@@ -110,20 +110,60 @@
 
         <div class="sync-grid">
           <div>
-            <label>Ruta push</label>
+            <label>Upload ventas</label>
             <input
-              v-model="syncForm.pushPath"
+              v-model="syncForm.uploadSalesPath"
               class="input"
-              placeholder="sync/events/batch"
+              placeholder="sync/upload-sales"
             />
           </div>
 
           <div>
-            <label>Ruta pull</label>
+            <label>Upload cierres de caja</label>
             <input
-              v-model="syncForm.pullPath"
+              v-model="syncForm.uploadCashClosuresPath"
               class="input"
-              placeholder="sync/pull"
+              placeholder="sync/upload-cash-closures"
+            />
+          </div>
+        </div>
+
+        <div class="sync-grid">
+          <div>
+            <label>Upload movimientos inventario</label>
+            <input
+              v-model="syncForm.uploadInventoryMovementsPath"
+              class="input"
+              placeholder="sync/upload-inventory-movements"
+            />
+          </div>
+
+          <div>
+            <label>Pull productos</label>
+            <input
+              v-model="syncForm.pullProductsPath"
+              class="input"
+              placeholder="sync/products"
+            />
+          </div>
+        </div>
+
+        <div class="sync-grid">
+          <div>
+            <label>Pull clientes</label>
+            <input
+              v-model="syncForm.pullCustomersPath"
+              class="input"
+              placeholder="sync/customers"
+            />
+          </div>
+
+          <div>
+            <label>Pull catalogo</label>
+            <input
+              v-model="syncForm.pullCatalogPath"
+              class="input"
+              placeholder="sync/catalog"
             />
           </div>
         </div>
@@ -269,6 +309,12 @@ const syncForm = reactive({
   authPath: 'auth/login',
   pushPath: 'sync/events/batch',
   pullPath: 'sync/pull',
+  uploadSalesPath: 'sync/upload-sales',
+  uploadCashClosuresPath: 'sync/upload-cash-closures',
+  uploadInventoryMovementsPath: 'sync/upload-inventory-movements',
+  pullProductsPath: 'sync/products',
+  pullCustomersPath: 'sync/customers',
+  pullCatalogPath: 'sync/catalog',
   authEmail: '',
   authPassword: '',
   deviceName: 'POS-LOCAL-01',
@@ -381,9 +427,27 @@ async function authenticateSync() {
     clearMessages()
     syncBusy.value = true
     const result = await window.posAPI.authenticateServerSync({
+      enabled: syncForm.enabled,
+      apiBaseUrl: syncForm.apiBaseUrl,
+      authPath: syncForm.authPath,
+      pushPath: syncForm.pushPath,
+      pullPath: syncForm.pullPath,
+      uploadSalesPath: syncForm.uploadSalesPath,
+      uploadCashClosuresPath: syncForm.uploadCashClosuresPath,
+      uploadInventoryMovementsPath: syncForm.uploadInventoryMovementsPath,
+      pullProductsPath: syncForm.pullProductsPath,
+      pullCustomersPath: syncForm.pullCustomersPath,
+      pullCatalogPath: syncForm.pullCatalogPath,
       authEmail: syncForm.authEmail,
       authPassword: syncForm.authPassword,
       deviceName: syncForm.deviceName,
+      storeId: syncForm.storeId,
+      timeoutMs: syncForm.timeoutMs,
+      batchSize: syncForm.batchSize,
+      retryBaseMs: syncForm.retryBaseMs,
+      syncIntervalMs: syncForm.syncIntervalMs,
+      autoSync: syncForm.autoSync,
+      pullEnabled: syncForm.pullEnabled,
     })
     Object.assign(syncForm, result?.settings || {})
     syncForm.authPassword = ''
